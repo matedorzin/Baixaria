@@ -1,0 +1,82 @@
+{
+  "name": "baixaria-desktop",
+  "version": "1.0.0",
+  "description": "Baixaria — downloads e conversões de vídeo e áudio",
+  "author": "matedorzin",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matedorzin/baixaria-desktop.git"
+  },
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-dir": "electron-builder --win --x64 --dir",
+    "build": "electron-builder --win nsis --x64",
+    "build-portable": "electron-builder --win portable --x64",
+    "release": "electron-builder --win nsis --x64 --publish always"
+  },
+  "build": {
+    "appId": "com.baixaria.desktop",
+    "productName": "Baixaria",
+    "executableName": "Baixaria",
+    "compression": "normal",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "publish": {
+      "provider": "github",
+      "owner": "matedorzin",
+      "repo": "baixaria-desktop",
+      "releaseType": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "extraResources": [
+      {
+        "from": "bin/",
+        "to": "bin/",
+        "filter": [
+          "yt-dlp.exe",
+          "ffmpeg.exe",
+          "ffprobe.exe",
+          "deno.exe"
+        ]
+      }
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "package.json",
+      "THIRD_PARTY_NOTICES.md",
+      "ui/**/*",
+      "services/**/*",
+      "assets/icon.png",
+      "assets/icon.ico",
+      "!**/*.map"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.10"
+  }
+}

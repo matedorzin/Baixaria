@@ -1,0 +1,56 @@
+name: Build and publish Windows release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Get source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download runtime tools and verify checksums
+        shell: pwsh
+        run: ./scripts/download-runtime.ps1
+
+      - name: Validate release version and load notes
+        id: notes
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $package = Get-Content package.json -Raw | ConvertFrom-Json
+          if ($package.version -ne $version) {
+            throw "A tag $env:GITHUB_REF_NAME precisa corresponder à versão $($package.version) do package.json."
+          }
+          $content = Get-Content CHANGELOG.md -Raw
+          $pattern = "(?ms)^## \[$([regex]::Escape($version))\][^\r\n]*\r?\n(.*?)(?=^## \[|\z)"
+          $match = [regex]::Match($content, $pattern)
+          if (-not $match.Success -or -not $match.Groups[1].Value.Trim()) {
+            throw "Adicione as notas da versão $version ao CHANGELOG.md antes de publicar."
+          }
+          $delimiter = [guid]::NewGuid().ToString('N')
+          "notes<<$delimiter" >> $env:GITHUB_OUTPUT
+          $match.Groups[1].Value.Trim() >> $env:GITHUB_OUTPUT
+          $delimiter >> $env:GITHUB_OUTPUT
+
+      - name: Build installer and publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_NOTES: ${{ steps.notes.outputs.notes }}
+        run: npx electron-builder --win nsis --x64 --publish always --config.releaseInfo.releaseNotes="$env:RELEASE_NOTES"
