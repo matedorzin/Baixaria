@@ -6,7 +6,7 @@
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "https://github.com/matedorzin/baixaria-desktop.git"
+    "url": "https://github.com/matedorzin/Baixaria.git"
   },
   "main": "main.js",
   "scripts": {
@@ -26,7 +26,7 @@
     "publish": {
       "provider": "github",
       "owner": "matedorzin",
-      "repo": "baixaria-desktop",
+      "repo": "Baixaria",
       "releaseType": "release"
     },
     "win": {
