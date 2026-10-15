@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## [1.2.0] - 2026-10-15
+
+- Novo visual com navegação no topo, artes discretas por área e controles de janela ilustrados.
+- Clipes com prévia adaptada a vídeos verticais, espectro de áudio, seleção precisa de vários trechos e exportação separada ou unificada com progresso.
+- Lupa do espectro sem borda, acima da faixa, mostrando um recorte ampliado da mesma forma de onda.
+- Configurações em janela, efeitos de clique com volume e mudo persistentes.
+- Melhorias na leitura de vídeos e na apresentação das telas Baixar e Converter.
+
 ## [1.1.3] - 2026-10-15
 
 - Baixar, Clipes e leitura de playlists tentam outras rotas públicas do YouTube quando a leitura padrão é recusada.

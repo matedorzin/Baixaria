@@ -12,6 +12,10 @@ export class DownloadTab {
     this.playlistEntries = []
     this.playlistTitle = ''
     this.splitParts = 0
+    this.currentUrl = ''
+    this.previewInfo = null
+    this.previewTimer = null
+    this.previewRequest = 0
   }
 
   mount() {
@@ -33,12 +37,14 @@ export class DownloadTab {
         <div class="field">
           <label>Link do video ou playlist</label>
           <div class="row two">
-            <input type="url" id="download-url" placeholder="https://youtube.com/watch?v=...">
+            <input type="url" id="download-url" placeholder="https://youtube.com/watch?v=..." value="${this.escapeHtml(this.currentUrl)}">
             <button class="secondary-btn" id="download-analyze-playlist" type="button">Ver playlist</button>
           </div>
           <div class="helper-text">Continue usando a aba de download como hoje, inclusive com playlists e cookies.</div>
         </div>
       </div>
+
+      <div class="card download-preview-card"><div class="download-preview-media" id="download-preview-media">${this.previewInfo?.thumbnail ? `<img src="${this.escapeHtml(this.previewInfo.thumbnail)}" alt="Miniatura do vídeo">` : `<img class="download-preview-placeholder" src="./assets/ui/video.png" alt="">`}</div><div class="download-preview-copy"><strong id="download-preview-title">${this.escapeHtml(this.previewInfo?.title || 'Prévia do vídeo')}</strong><small id="download-preview-detail">${this.previewInfo ? 'Vídeo encontrado' : 'Cole um link para carregar a imagem e o título.'}</small></div></div>
 
       <div class="card">
         <div class="field">
@@ -153,6 +159,16 @@ export class DownloadTab {
   }
 
   bindEvents() {
+    this.root.querySelector('#download-url').addEventListener('input', event => {
+      this.currentUrl = event.target.value
+      clearTimeout(this.previewTimer)
+      const request = ++this.previewRequest
+      this.previewInfo = null
+      this.showPreview()
+      if (/^https?:\/\//i.test(this.currentUrl) && !this.currentUrl.includes('list=')) {
+        this.previewTimer = setTimeout(() => this.loadPreview(this.currentUrl, request), 850)
+      }
+    })
     this.root.querySelector('#download-split-count')?.addEventListener('change', (event) => { this.splitParts = Number(event.target.value) || 0 })
     this.root.querySelectorAll('[data-download-quality]').forEach((button) => button.addEventListener('click', () => {
       this.selectedQuality = button.dataset.downloadQuality
@@ -213,6 +229,30 @@ export class DownloadTab {
   }
 
   syncAppInfo() {
+  }
+
+  async loadPreview(url, request) {
+    let result
+    try { result = await this.api.fetchClipInfo(url, this.appInfo.cookiesPath || '', '') }
+    catch { return }
+    if (request !== this.previewRequest || url !== this.currentUrl) return
+    this.previewInfo = result.video || null
+    this.showPreview()
+  }
+
+  showPreview() {
+    const media = this.root.querySelector('#download-preview-media')
+    const title = this.root.querySelector('#download-preview-title')
+    const detail = this.root.querySelector('#download-preview-detail')
+    if (!media || !title || !detail) return
+    media.replaceChildren()
+    const img = document.createElement('img')
+    img.src = this.previewInfo?.thumbnail || './assets/ui/video.png'
+    img.alt = this.previewInfo?.thumbnail ? 'Miniatura do vídeo' : ''
+    if (!this.previewInfo?.thumbnail) img.className = 'download-preview-placeholder'
+    media.append(img)
+    title.textContent = this.previewInfo?.title || 'Prévia do vídeo'
+    detail.textContent = this.previewInfo ? 'Vídeo encontrado' : 'Cole um link para carregar a imagem e o título.'
   }
 
   getPlaylistMode() {

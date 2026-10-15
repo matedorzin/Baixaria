@@ -10,7 +10,44 @@ const updateSummary = document.getElementById('update-summary')
 const updateNotes = document.getElementById('update-notes')
 const updateCheckButton = document.getElementById('update-check-btn')
 const updateActionButton = document.getElementById('update-action-btn')
-let appSettings = { downloadFolder: '' }
+let appSettings = { downloadFolder: '', soundMuted: false, soundVolume: 0.35 }
+let clickAudioContext
+let soundSaveTimer
+
+function playClick() {
+  if (appSettings.soundMuted || appSettings.soundVolume <= 0) return
+  try {
+    clickAudioContext ||= new (window.AudioContext || window.webkitAudioContext)()
+    if (clickAudioContext.state === 'suspended') clickAudioContext.resume()
+    const now = clickAudioContext.currentTime
+    const oscillator = clickAudioContext.createOscillator()
+    const gain = clickAudioContext.createGain()
+    oscillator.type = 'triangle'
+    oscillator.frequency.setValueAtTime(660, now)
+    oscillator.frequency.exponentialRampToValueAtTime(260, now + 0.038)
+    gain.gain.setValueAtTime(Math.max(0.001, appSettings.soundVolume * 0.12), now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045)
+    oscillator.connect(gain).connect(clickAudioContext.destination)
+    oscillator.start(now)
+    oscillator.stop(now + 0.05)
+  } catch {}
+}
+
+function syncSoundControls() {
+  const mute = document.getElementById('sound-toggle')
+  const icon = document.getElementById('sound-toggle-icon')
+  const slider = document.getElementById('settings-sound-volume')
+  const value = document.getElementById('settings-sound-value')
+  if (mute) { mute.classList.toggle('is-muted', appSettings.soundMuted); mute.title = appSettings.soundMuted ? 'Ativar efeitos' : 'Silenciar efeitos'; mute.setAttribute('aria-label', mute.title) }
+  if (icon) icon.src = `./assets/ui/${appSettings.soundMuted ? 'mute' : 'volume'}.png`
+  if (slider) slider.value = Math.round(appSettings.soundVolume * 100)
+  if (value) value.textContent = `${Math.round(appSettings.soundVolume * 100)}%`
+}
+
+async function saveSoundSettings() {
+  const result = await window.api.setSoundSettings(appSettings.soundMuted, appSettings.soundVolume)
+  if (result.error) setStatus(result.error, 'error')
+}
 let downloadTab
 let convertTab
 let clipTab
@@ -61,6 +98,16 @@ function setStatus(text, type = '') {
 }
 
 function activateTab(tabName) {
+  if (tabName === 'settings') {
+    if (document.querySelector('.layout').classList.contains('home-active')) activateTab('download')
+    document.getElementById('settings-panel').classList.add('active')
+    document.querySelector('.layout').classList.add('settings-open')
+    document.getElementById('settings-btn').classList.add('active')
+    return
+  }
+  document.getElementById('settings-panel').classList.remove('active')
+  document.querySelector('.layout').classList.remove('settings-open')
+  document.getElementById('settings-btn').classList.remove('active')
   document.querySelector('.layout').classList.toggle('home-active', tabName === 'home')
   const screens = {
     download: ['01', 'BAIXAR', 'ダウンロード'],
@@ -79,7 +126,7 @@ function activateTab(tabName) {
     button.classList.toggle('active', button.dataset.tab === tabName)
   })
 
-  document.querySelectorAll('.tab-panel').forEach((panel) => {
+  document.querySelectorAll('.tab-panel:not(#settings-panel)').forEach((panel) => {
     panel.classList.toggle('active', panel.id === `${tabName}-panel`)
   })
   const labels = { download: 'Baixar', clips: 'Clipes', convert: 'Converter', settings: 'Configurações' }
@@ -147,6 +194,9 @@ function renderUpdaterState(data) {
 }
 
 async function boot() {
+  document.addEventListener('pointerdown', (event) => {
+    if (event.target.closest('button:not(:disabled)')) playClick()
+  }, true)
   document.getElementById('minimize-btn').addEventListener('click', () => window.api.minimize())
   document.getElementById('close-btn').addEventListener('click', () => window.api.close())
   document.getElementById('tab-home-btn').addEventListener('click', () => activateTab('home'))
@@ -180,6 +230,20 @@ async function boot() {
 
   const appInfo = await window.api.checkYtdlp()
   appSettings = appInfo.settings || await window.api.getAppSettings()
+  syncSoundControls()
+  document.getElementById('sound-toggle').addEventListener('click', () => {
+    appSettings.soundMuted = !appSettings.soundMuted
+    syncSoundControls()
+    clearTimeout(soundSaveTimer)
+    saveSoundSettings()
+  })
+  document.getElementById('settings-sound-volume').addEventListener('input', (event) => {
+    appSettings.soundVolume = Number(event.target.value) / 100
+    if (appSettings.soundVolume > 0) appSettings.soundMuted = false
+    syncSoundControls()
+    clearTimeout(soundSaveTimer)
+    soundSaveTimer = setTimeout(saveSoundSettings, 200)
+  })
   document.getElementById('settings-session-status').textContent = appInfo.cookiesPath
     ? 'Arquivo local de acesso encontrado neste PC. O Baixaria o usa automaticamente ao ler vídeos do YouTube.'
     : 'Nenhum arquivo local de acesso encontrado. O Baixaria tentará ler vídeos diretamente.'
@@ -200,6 +264,8 @@ async function boot() {
   })
   document.getElementById('settings-btn').addEventListener('click', () => activateTab('settings'))
   document.getElementById('tab-settings-btn').addEventListener('click', () => activateTab('settings'))
+  document.getElementById('settings-close').addEventListener('click', () => activateTab(document.querySelector('.tab-btn.active')?.dataset.tab || 'download'))
+  document.getElementById('settings-dismiss').addEventListener('click', () => activateTab(document.querySelector('.tab-btn.active')?.dataset.tab || 'download'))
   document.getElementById('tab-clips-btn').addEventListener('click', () => activateTab('clips'))
   document.getElementById('uninstall-btn').addEventListener('click', async () => {
     const result = await window.api.openUninstallSettings()

@@ -12,6 +12,7 @@ const { autoUpdater } = require('electron-updater')
 
 let mainWindow
 const previewMedia = new Map()
+let activeClipExport = null
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'baixaria-media', privileges: { standard: true, secure: true, stream: true } }
@@ -63,7 +64,9 @@ function getRuntimeContext() {
 
 function defaultAppSettings() {
   return {
-    downloadFolder: app.getPath('downloads')
+    downloadFolder: app.getPath('downloads'),
+    soundMuted: false,
+    soundVolume: 0.35
   }
 }
 
@@ -76,7 +79,9 @@ function readAppSettings() {
       ? path.resolve(stored.downloadFolder)
       : defaults.downloadFolder
     return {
-      downloadFolder: fs.existsSync(folder) && fs.statSync(folder).isDirectory() ? folder : defaults.downloadFolder
+      downloadFolder: fs.existsSync(folder) && fs.statSync(folder).isDirectory() ? folder : defaults.downloadFolder,
+      soundMuted: typeof stored.soundMuted === 'boolean' ? stored.soundMuted : defaults.soundMuted,
+      soundVolume: Number.isFinite(stored.soundVolume) ? Math.max(0, Math.min(1, stored.soundVolume)) : defaults.soundVolume
     }
   } catch {
     return defaults
@@ -388,11 +393,12 @@ function formatDuration(totalSeconds) {
 }
 
 function formatSectionTime(totalSeconds) {
-  const value = Math.max(0, Math.floor(Number(totalSeconds) || 0))
+  const centiseconds = Math.max(0, Math.round((Number(totalSeconds) || 0) * 100))
+  const value = Math.floor(centiseconds / 100)
   const hours = Math.floor(value / 3600)
   const minutes = Math.floor((value % 3600) / 60)
   const seconds = value % 60
-  return [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':')
+  return `${[hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':')}.${String(centiseconds % 100).padStart(2, '0')}`
 }
 
 function compactIndices(indices) {
@@ -545,6 +551,15 @@ function configureAutoUpdater() {
 
 function sendDownloadProgress(payload) {
   sendToRenderer('download-progress', payload)
+  if (activeClipExport && Number.isFinite(payload.percent)) {
+    const { index, total, join } = activeClipExport
+    const scale = join ? 82 : 100
+    sendToRenderer('clip-export-progress', {
+      phase: 'download', index, total,
+      label: `Baixando clipe ${index} de ${total}`,
+      percent: Math.min(scale, ((index - 1 + Math.max(0, Math.min(100, payload.percent)) / 100) / total) * scale)
+    })
+  }
 }
 
 function sendDownloadState(state, details = {}) {
@@ -922,6 +937,15 @@ registerTrustedHandle('select-folder', async () => {
 
 registerTrustedHandle('get-app-settings', async () => readAppSettings())
 
+registerTrustedHandle('set-sound-settings', async (event, soundMuted, soundVolume) => {
+  if (typeof soundMuted !== 'boolean' || !Number.isFinite(soundVolume)) return { error: 'Configuração de som inválida.' }
+  try {
+    const settings = { ...readAppSettings(), soundMuted, soundVolume: Math.max(0, Math.min(1, soundVolume)) }
+    writeAppSettings(settings)
+    return { settings }
+  } catch (error) { return { error: `Não foi possível salvar o som: ${error.message}` } }
+})
+
 registerTrustedHandle('set-download-folder', async (event, folderPath) => {
   if (typeof folderPath !== 'string' || !path.isAbsolute(folderPath)) {
     return { error: 'Escolha uma pasta válida.' }
@@ -1130,7 +1154,9 @@ registerTrustedHandle('fetch-clip-info', async (event, url, selectedCookiesPath,
     const preview = combinedFormats.find((format) => Number(format.height) <= 720) || combinedFormats[0]
     const previewVideo = preview || videoFormats[0]
     const previewAudio = preview ? null : audioFormats[0]
-    previewMedia.clear()
+    for (const [token, media] of previewMedia) {
+      if (media.expires < Date.now()) previewMedia.delete(token)
+    }
     return {
       success: true,
       video: {
@@ -1147,6 +1173,38 @@ registerTrustedHandle('fetch-clip-info', async (event, url, selectedCookiesPath,
   } catch {
     return { error: 'O site retornou informações que o Baixaria não conseguiu interpretar.' }
   }
+})
+
+registerTrustedHandle('clip-waveform', async (event, previewUrl, range) => {
+  let token = ''
+  try {
+    const parsed = new URL(String(previewUrl || ''))
+    if (parsed.protocol === 'baixaria-media:' && parsed.hostname === 'preview') token = parsed.pathname.slice(1)
+  } catch {}
+  const media = previewMedia.get(token)
+  const ffmpegPath = getFfmpegPath(getYtDlpPath())
+  if (!media || media.expires < Date.now() || !isTrustedMediaUrl(media.url) || !ffmpegPath) return { error: 'Áudio indisponível para a forma de onda.' }
+  const headers = Object.entries(media.headers).filter(([key, value]) => /^(user-agent|referer|origin)$/i.test(key) && typeof value === 'string')
+  const args = ['-hide_banner', '-loglevel', 'error']
+  if (headers.length) args.push('-headers', headers.map(([key, value]) => `${key}: ${value}\r\n`).join(''))
+  const zoom = range && Number.isFinite(range.start) && Number.isFinite(range.duration) && range.start >= 0 && range.duration >= 1 && range.duration <= 30
+  if (zoom) args.push('-ss', String(range.start))
+  args.push('-i', media.url)
+  if (zoom) args.push('-t', String(range.duration))
+  args.push('-filter_complex', `aformat=channel_layouts=mono,volume=3,showwavespic=s=${zoom ? '1400x180' : '1800x220'}:scale=sqrt:colors=0xF08A3A`, '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', 'pipe:1')
+  return new Promise((resolve) => {
+    const proc = spawn(ffmpegPath, args, { windowsHide: true })
+    const chunks = []
+    let bytes = 0
+    let settled = false
+    const finish = (value) => { if (!settled) { settled = true; clearTimeout(timer); resolve(value) } }
+    const timer = setTimeout(() => { proc.kill(); finish({ error: 'A análise do áudio demorou demais.' }) }, 120000)
+    proc.stdout.on('data', (chunk) => { bytes += chunk.length; if (bytes > 4 * 1024 * 1024) proc.kill(); else chunks.push(chunk) })
+    proc.on('error', () => finish({ error: 'Não foi possível analisar o áudio.' }))
+    proc.on('close', (code) => finish(code === 0 && bytes > 0 && bytes <= 4 * 1024 * 1024
+      ? { image: `data:image/png;base64,${Buffer.concat(chunks).toString('base64')}` }
+      : { error: 'Este vídeo não disponibilizou uma forma de onda.' }))
+  })
 })
 
 registerTrustedHandle('download-clips', async (event, options) => {
@@ -1173,8 +1231,18 @@ registerTrustedHandle('download-clips', async (event, options) => {
     : readAppSettings().downloadFolder
   const baseName = sanitizeFilename(String(options.filename || 'clipe')) || 'clipe'
   const completed = []
+  const joinClips = options.joinClips === true && clips.length > 1
+  const ffmpegPath = joinClips ? getFfmpegPath(getYtDlpPath()) : null
+  if (joinClips && !ffmpegPath) return { error: 'ffmpeg.exe não foi encontrado para juntar os trechos.' }
+  let tempFolder = ''
+
+  try {
+  activeClipExport = { index: 1, total: clips.length, join: joinClips }
+  if (joinClips) tempFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'baixaria-clips-'))
 
   for (let index = 0; index < clips.length; index += 1) {
+    activeClipExport.index = index + 1
+    sendToRenderer('clip-export-progress', { phase: 'download', index: index + 1, total: clips.length, label: `Baixando clipe ${index + 1} de ${clips.length}`, percent: ((index / clips.length) * (joinClips ? 82 : 100)) })
     const clipNumber = String(index + 1).padStart(2, '0')
     sendDownloadProgress({ line: `Baixando trecho ${index + 1} de ${clips.length}...` })
     const result = await beginDownload({
@@ -1183,7 +1251,7 @@ registerTrustedHandle('download-clips', async (event, options) => {
       audioQuality: 192,
       quality: ['best', '1080', '720', '480', '360'].includes(options.quality) ? options.quality : 'best',
       filename: `${baseName}-${clipNumber}`,
-      folder,
+      folder: tempFolder || folder,
       cookiesPath: options.cookiesPath,
       cookiesFromBrowser: options.cookiesFromBrowser,
       playlistMode: false,
@@ -1194,10 +1262,54 @@ registerTrustedHandle('download-clips', async (event, options) => {
     if (!result.success) {
       return { error: result.error || 'Um dos trechos não foi baixado.', completed, folder }
     }
-    completed.push({ index: index + 1, folder })
+    completed.push({ index: index + 1, folder: tempFolder || folder })
   }
 
-  return { success: true, completed, folder }
+  if (!joinClips) { sendToRenderer('clip-export-progress', { phase: 'done', percent: 100, label: 'Clipes salvos' }); return { success: true, completed, folder } }
+
+  const extension = options.format === 'audio' ? '.mp3' : '.mp4'
+  const downloaded = clips.map((_, index) => {
+    const stem = `${baseName}-${String(index + 1).padStart(2, '0')}`
+    const exact = path.join(tempFolder, `${stem}${extension}`)
+    if (fs.existsSync(exact)) return exact
+    const found = fs.readdirSync(tempFolder).find((file) => file.toLowerCase().startsWith(`${stem.toLowerCase()}.`) && file.toLowerCase().endsWith(extension))
+    return found ? path.join(tempFolder, found) : ''
+  })
+  if (downloaded.some((file) => !file)) return { error: 'Os trechos foram baixados, mas um arquivo não foi encontrado para a junção.', folder }
+
+  const listPath = path.join(tempFolder, 'concat-list.txt')
+  fs.writeFileSync(listPath, downloaded.map((file) => `file '${file.replace(/\\/g, '/').replace(/'/g, "'\\''")}'`).join('\n'), 'utf8')
+  fs.mkdirSync(folder, { recursive: true })
+  let outputPath = path.join(folder, `${baseName}-juntado${extension}`)
+  for (let suffix = 2; fs.existsSync(outputPath); suffix += 1) outputPath = path.join(folder, `${baseName}-juntado-${suffix}${extension}`)
+  sendDownloadProgress({ line: 'Juntando os trechos em um arquivo…' })
+  activeClipExport = null
+  sendToRenderer('clip-export-progress', { phase: 'join', percent: 82, label: 'Juntando clipes' })
+  const args = ['-n', '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', listPath]
+  if (options.format === 'audio') args.push('-vn', '-c:a', 'libmp3lame', '-b:a', '192k')
+  else args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart')
+  args.push(outputPath)
+  const joined = await new Promise((resolve) => {
+    const proc = spawn(ffmpegPath, args, { windowsHide: true })
+    let diagnostics = ''
+    proc.stderr.on('data', (chunk) => { diagnostics = (diagnostics + chunk.toString()).slice(-1200) })
+    proc.on('error', (error) => resolve({ error: error.message }))
+    proc.on('close', (code) => resolve(code === 0 ? { success: true } : { error: diagnostics || `ffmpeg encerrou com código ${code}` }))
+  })
+  if (!joined.success) {
+    try { fs.unlinkSync(outputPath) } catch {}
+    return { error: `Não foi possível juntar os trechos: ${joined.error}`, folder }
+  }
+  sendToRenderer('clip-export-progress', { phase: 'done', percent: 100, label: 'Arquivo salvo' })
+  return { success: true, completed: [{ index: 1, folder, file: outputPath }], folder, file: outputPath }
+  } catch (error) {
+    return { error: `Não foi possível exportar os trechos: ${error.message}`, folder }
+  } finally {
+    activeClipExport = null
+    if (tempFolder && path.dirname(tempFolder) === os.tmpdir() && path.basename(tempFolder).startsWith('baixaria-clips-')) {
+      try { fs.rmSync(tempFolder, { recursive: true, force: true }) } catch {}
+    }
+  }
 })
 
 registerTrustedHandle('probe-media', async (event, filePath) => {
