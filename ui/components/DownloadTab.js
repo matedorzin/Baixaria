@@ -1,15 +1,17 @@
 export class DownloadTab {
-  constructor({ root, api, setStatus, appInfo }) {
+  constructor({ root, api, setStatus, appInfo, settings }) {
     this.root = root
     this.api = api
     this.setStatus = setStatus
     this.appInfo = appInfo
     this.currentFormat = 'video'
     this.lastFolder = ''
+    this.defaultFolder = settings?.downloadFolder || ''
     this.downloading = false
     this.currentDownloadState = appInfo.downloadState || 'idle'
     this.playlistEntries = []
     this.playlistTitle = ''
+    this.splitParts = 0
   }
 
   mount() {
@@ -43,12 +45,12 @@ export class DownloadTab {
           <label>Formato</label>
           <div class="format-toggle">
             <button class="fmt-btn ${this.currentFormat === 'video' ? 'active-video' : ''}" id="download-btn-video" type="button">
-              <span class="fmt-icon">↓</span>
+              <span class="fmt-icon"><img class="raster-icon" src="./assets/ui/video.png" alt=""></span>
               <span class="fmt-label">Video</span>
               <span class="fmt-sub">MP4 para Premiere</span>
             </button>
             <button class="fmt-btn ${this.currentFormat === 'audio' ? 'active-audio' : ''}" id="download-btn-audio" type="button">
-              <span class="fmt-icon">♪</span>
+              <span class="fmt-icon"><img class="raster-icon" src="./assets/ui/audio.png" alt=""></span>
               <span class="fmt-label">Audio</span>
               <span class="fmt-sub">MP3</span>
             </button>
@@ -57,15 +59,16 @@ export class DownloadTab {
 
         <div class="field" id="download-video-quality-wrap" style="${this.currentFormat === 'audio' ? 'display:none;' : ''}">
           <label>Qualidade do video</label>
-          <select id="download-quality">
+          <select id="download-quality" hidden>
             <option value="best">Melhor disponivel</option>
             <option value="1080">1080p</option>
             <option value="720">720p</option>
             <option value="480">480p</option>
             <option value="360">360p</option>
           </select>
-          <div class="helper-text">Videos saem em MP4 H.264 com audio AAC, prontos para importar no Premiere.</div>
+          <div class="quality-grid">${[['best','Melhor disponível'],['1080','1080p'],['720','720p'],['480','480p'],['360','360p']].map(([v,l]) => `<button class="quality-choice ${this.selectedQuality === v || (!this.selectedQuality && v === 'best') ? 'active' : ''}" data-download-quality="${v}" type="button"><strong>${l}</strong><span>MP4</span></button>`).join('')}</div>
         </div>
+        ${this.currentFormat === 'video' ? `<details class="advanced-options" style="margin-top:12px"><summary>Dividir este vídeo em clipes</summary><div class="field" style="margin-top:12px"><label>Quantidade de partes</label><select id="download-split-count"><option value="0" ${this.splitParts ? '' : 'selected'}>Não dividir</option>${[2,3,4,5,6,8,10,12].map(n => `<option value="${n}" ${Number(this.splitParts) === n ? 'selected' : ''}>${n} partes</option>`).join('')}</select><div class="helper-text">Baixa o vídeo e salva cada trecho como um arquivo separado.</div></div></details>` : ''}
 
         <div class="field" id="download-audio-quality-wrap" style="${this.currentFormat === 'audio' ? '' : 'display:none;'}">
           <label>Qualidade do audio</label>
@@ -89,27 +92,12 @@ export class DownloadTab {
           </label>
         </div>
 
-        <div class="field">
-          <label>Nome do arquivo ou pasta (opcional)</label>
-          <input type="text" id="download-filename" placeholder="deixe vazio para usar o titulo do video ou da playlist">
-        </div>
-
-        <div class="field">
-          <label>Pasta de destino</label>
-          <div class="path-row">
-            <input type="text" id="download-folder" placeholder="Padrao: Downloads">
-            <button class="icon-btn" id="download-pick-folder" type="button">...</button>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Cookies do navegador (opcional)</label>
-          <div class="path-row">
-            <input type="text" id="download-cookies-path" placeholder="cookies.txt para videos privados ou bloqueados">
-            <button class="icon-btn" id="download-pick-cookies" type="button">...</button>
-          </div>
-          <div class="helper-text">Cookies são opcionais e ficam no seu computador. Eles não são incluídos no instalador; selecione um arquivo apenas quando precisar.</div>
-        </div>
+        <div class="compact-destination"><div class="destination-copy"><div class="destination-title">Salvar em</div><div class="destination-path">${this.escapeHtml(this.defaultFolder || 'Downloads')}</div></div><button class="folder-action" id="download-pick-folder" type="button" aria-label="Escolher pasta"><img class="raster-icon" src="./assets/ui/folder.png" alt=""></button></div>
+        <input type="hidden" id="download-folder" value="${this.escapeHtml(this.defaultFolder)}">
+        <details class="advanced-options" style="margin-top:12px"><summary>Mais opções</summary>
+          <div class="field"><label>Nome do arquivo ou pasta (opcional)</label><input type="text" id="download-filename" placeholder="Usar título do vídeo ou playlist"></div>
+          <div class="settings-note">O download começa diretamente pelo link. O Baixaria não fecha nem reinicia o navegador.</div>
+        </details>
       </div>
 
       <div class="card playlist-card" id="download-playlist-card">
@@ -146,7 +134,7 @@ export class DownloadTab {
 
       <div class="action-row" style="grid-template-columns: 1fr 180px;">
         <button class="primary-btn" id="download-start-btn" type="button">${this.downloading ? 'Baixando...' : 'Baixar agora'}</button>
-        <button class="danger-btn" id="download-stop-btn" type="button" ${this.currentDownloadState === 'downloading' ? '' : 'disabled'}>Parar</button>
+        <button class="danger-btn" id="download-stop-btn" type="button" ${this.currentDownloadState === 'downloading' || this.currentDownloadState === 'retrying' ? '' : 'disabled'}>Parar</button>
       </div>
 
       <div class="progress-wrap" id="download-progress-wrap">
@@ -165,6 +153,12 @@ export class DownloadTab {
   }
 
   bindEvents() {
+    this.root.querySelector('#download-split-count')?.addEventListener('change', (event) => { this.splitParts = Number(event.target.value) || 0 })
+    this.root.querySelectorAll('[data-download-quality]').forEach((button) => button.addEventListener('click', () => {
+      this.selectedQuality = button.dataset.downloadQuality
+      this.root.querySelector('#download-quality').value = this.selectedQuality
+      this.root.querySelectorAll('[data-download-quality]').forEach((item) => item.classList.toggle('active', item === button))
+    }))
     this.root.querySelector('#download-btn-video').addEventListener('click', () => {
       this.currentFormat = 'video'
       this.render()
@@ -184,13 +178,8 @@ export class DownloadTab {
       if (folder) {
         this.root.querySelector('#download-folder').value = folder
         this.lastFolder = folder
-      }
-    })
-
-    this.root.querySelector('#download-pick-cookies').addEventListener('click', async () => {
-      const filePath = await this.api.selectCookiesFile()
-      if (filePath) {
-        this.root.querySelector('#download-cookies-path').value = filePath
+        this.defaultFolder = folder
+        this.root.querySelector('.destination-path').textContent = folder
       }
     })
 
@@ -214,7 +203,6 @@ export class DownloadTab {
         this.api.openFolder(folder)
       }
     })
-
     this.api.removeProgressListener()
     this.api.onProgress((data) => this.handleProgress(data))
     this.api.removeDownloadStateListener()
@@ -225,12 +213,6 @@ export class DownloadTab {
   }
 
   syncAppInfo() {
-    if (this.appInfo.cookiesPath) {
-      const cookiesInput = this.root.querySelector('#download-cookies-path')
-      if (cookiesInput && !cookiesInput.value) {
-        cookiesInput.value = this.appInfo.cookiesPath
-      }
-    }
   }
 
   getPlaylistMode() {
@@ -382,8 +364,9 @@ export class DownloadTab {
 
     this.resetResultBox()
     this.setStatus('Lendo playlist...', 'working')
-    const cookiesPath = this.root.querySelector('#download-cookies-path').value.trim()
-    const result = await this.api.fetchPlaylist(url, cookiesPath)
+    const cookiesPath = this.appInfo?.cookiesPath || ''
+    const cookiesFromBrowser = ''
+    const result = await this.api.fetchPlaylist(url, cookiesPath, cookiesFromBrowser)
 
     if (result.error) {
       this.showResult('error', result.error)
@@ -411,10 +394,23 @@ export class DownloadTab {
       audioQuality: this.root.querySelector('#download-audio-quality').value,
       filename: this.root.querySelector('#download-filename').value.trim(),
       folder: this.root.querySelector('#download-folder').value.trim(),
-      cookiesPath: this.root.querySelector('#download-cookies-path').value.trim(),
+      cookiesPath: this.appInfo?.cookiesPath || '',
+      cookiesFromBrowser: '',
       playlistMode: this.getPlaylistMode(),
       selectedIndices: this.getPlaylistMode() ? this.collectSelectedIndices() : []
     }
+  }
+
+  setDefaultFolder(folder) {
+    this.defaultFolder = folder
+    const input = this.root.querySelector('#download-folder')
+    const label = this.root.querySelector('.destination-path')
+    if (input) input.value = folder
+    if (label) label.textContent = folder || 'Downloads'
+  }
+
+  escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
   }
 
   async startDownload() {
@@ -434,6 +430,10 @@ export class DownloadTab {
     }
 
     if (payload.playlistMode) {
+      if (this.splitParts >= 2) {
+        this.setStatus('Dividir em partes está disponível para um vídeo individual. Desmarque a playlist inteira.', 'error')
+        return
+      }
       if (this.playlistEntries.length === 0) {
         const loaded = await this.loadPlaylist()
         if (!loaded) {
@@ -446,6 +446,11 @@ export class DownloadTab {
         this.setStatus('Selecione pelo menos um item da playlist.', 'error')
         return
       }
+    }
+
+    if (this.currentFormat === 'video' && this.splitParts >= 2) {
+      await this.startSplitDownload(payload)
+      return
     }
 
     this.downloading = true
@@ -479,6 +484,52 @@ export class DownloadTab {
     this.setStatus('Erro no download.', 'error')
   }
 
+  async startSplitDownload(payload) {
+    this.downloading = true
+    this.root.querySelector('#download-start-btn').textContent = 'Preparando clipes…'
+    this.root.querySelector('#download-stop-btn').disabled = false
+    this.root.querySelector('#download-progress-wrap').className = 'progress-wrap show'
+    this.root.querySelector('#download-progress-log').textContent = ''
+    this.root.querySelector('#download-progress-fill').style.width = '0%'
+    this.resetResultBox()
+    this.setStatus('Lendo a duração do vídeo…', 'working')
+    const info = await this.api.fetchClipInfo(payload.url, payload.cookiesPath, payload.cookiesFromBrowser)
+    if (info.error || !Number(info.video?.duration)) {
+      this.downloading = false
+      this.root.querySelector('#download-start-btn').textContent = 'Baixar agora'
+      this.root.querySelector('#download-stop-btn').disabled = true
+      this.showResult('error', info.error || 'Não consegui identificar a duração para dividir este vídeo.')
+      this.setStatus('Não foi possível preparar os clipes.', 'error')
+      return
+    }
+    const duration = Number(info.video.duration)
+    if (duration < this.splitParts) {
+      this.downloading = false
+      this.root.querySelector('#download-start-btn').textContent = 'Baixar agora'
+      this.root.querySelector('#download-stop-btn').disabled = true
+      this.showResult('error', 'O vídeo é curto demais para essa quantidade de partes.')
+      this.setStatus('Reduza a quantidade de partes.', 'error')
+      return
+    }
+    const clips = Array.from({ length: this.splitParts }, (_, index) => ({
+      start: Math.floor(duration * index / this.splitParts),
+      end: Math.floor(duration * (index + 1) / this.splitParts)
+    }))
+    this.setStatus(`Baixando ${clips.length} clipes…`, 'working')
+    const result = await this.api.downloadClips({ url: payload.url, clips, duration, folder: payload.folder, filename: payload.filename || info.video.title, quality: payload.quality, cookiesPath: payload.cookiesPath, cookiesFromBrowser: payload.cookiesFromBrowser })
+    this.downloading = false
+    this.root.querySelector('#download-start-btn').textContent = 'Baixar agora'
+    this.root.querySelector('#download-stop-btn').disabled = true
+    if (result.success) {
+      this.root.querySelector('#download-progress-fill').style.width = '100%'
+      this.showResult('success', `${clips.length} clipes baixados.`, result.folder)
+      this.setStatus('Clipes baixados com sucesso.')
+    } else {
+      this.showResult('error', result.error || 'Falha ao baixar clipes.', result.folder)
+      this.setStatus('Erro ao baixar clipes.', 'error')
+    }
+  }
+
   handleProgress(data) {
     const progressWrap = this.root.querySelector('#download-progress-wrap')
     const progressFill = this.root.querySelector('#download-progress-fill')
@@ -504,7 +555,7 @@ export class DownloadTab {
     this.currentDownloadState = data.state
     const stopBtn = this.root.querySelector('#download-stop-btn')
     if (stopBtn) {
-      stopBtn.disabled = data.state !== 'downloading'
+      stopBtn.disabled = data.state !== 'downloading' && data.state !== 'retrying'
     }
   }
 

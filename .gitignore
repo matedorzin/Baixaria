@@ -1,6 +1,9 @@
 node_modules/
 dist/
+/dist-test*/
 /DownloadsYT/
+/work/
+/local-auth.json
 /bin/*.exe
 /yt-dlp.exe
 /bin/cookies.txt

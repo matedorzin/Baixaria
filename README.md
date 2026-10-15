@@ -38,6 +38,6 @@ O GitHub Actions compila o instalador NSIS x64 e publica um GitHub Release com a
 
 ## Segurança e componentes
 
-O app não inclui cookies pessoais no instalador. A janela usa isolamento de contexto e sandbox; a comunicação entre a interface e o processo principal valida a origem. O atualizador obtém pacotes de GitHub Releases sobre HTTPS.
+O app não inclui cookies pessoais no instalador. Uma instalação local pode apontar para um arquivo de cookies já existente por meio de `local-auth.json` na pasta de dados do Baixaria; o arquivo contém apenas o caminho e nunca é empacotado. A janela usa isolamento de contexto e sandbox; a comunicação entre a interface e o processo principal valida a origem. O atualizador obtém pacotes de GitHub Releases sobre HTTPS.
 
 Consulte [avisos de terceiros](THIRD_PARTY_NOTICES.md) para as origens e licenças das ferramentas incluídas. A build Essentials do FFmpeg indicada pelo fornecedor é GPLv3; revise os termos aplicáveis à redistribuição antes de publicar um instalador. Instaladores não assinados podem exibir avisos do Windows SmartScreen.

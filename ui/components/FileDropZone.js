@@ -4,7 +4,7 @@ export function renderFileDropZone({ selectedFileName = '' } = {}) {
       <div class="section-title">Arquivo de origem</div>
       <div class="drop-zone" id="convert-drop-zone">
         <div class="drop-copy">
-          <div class="drop-icon">↻</div>
+          <div class="drop-icon"><img class="raster-icon" src="./assets/ui/video.png" alt=""></div>
           <div class="drop-title">Arraste um video ou audio aqui</div>
           <div class="drop-sub">
             Solte o arquivo dentro desta area ou use o botao abaixo para abrir o explorador.

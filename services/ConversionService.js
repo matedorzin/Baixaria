@@ -237,6 +237,71 @@ function buildCommand(payload) {
   return { args, outputPath }
 }
 
+function buildSplitOutput(payload, index, total) {
+  const outputFolder = payload.outputFolder || path.dirname(payload.inputPath)
+  ensureOutputDirectory(outputFolder)
+  const fallbackName = stripExtension(path.basename(payload.inputPath))
+  const baseName = sanitizeOutputName(payload.outputName, fallbackName)
+  const extension = getContainerExtension(payload.outputFormat || 'MP4')
+  const partNumber = String(index + 1).padStart(String(total).length, '0')
+  return path.join(outputFolder, `${baseName}-${partNumber}.${extension}`)
+}
+
+async function splitMedia(payload, context, onProgress, durationSeconds) {
+  const total = Number(payload.splitParts)
+  if (!Number.isInteger(total) || total < 2 || total > 30) {
+    throw new Error('Escolha entre 2 e 30 partes.')
+  }
+  if (payload.mediaType !== 'video' || payload.convertToGif || payload.extractAudioOnly || !durationSeconds) {
+    throw new Error('A divisão em partes precisa de um vídeo com duração reconhecida.')
+  }
+
+  const ffmpegPath = getFfmpegPath(context)
+  if (!ffmpegPath) {
+    throw new Error('ffmpeg.exe não foi encontrado em bin/ ou DownloadsYT/.')
+  }
+
+  const segmentDuration = durationSeconds / total
+  const outputPaths = []
+  for (let index = 0; index < total; index += 1) {
+    const start = segmentDuration * index
+    const length = index === total - 1 ? durationSeconds - start : segmentDuration
+    const outputPath = buildSplitOutput(payload, index, total)
+    const args = [
+      '-y',
+      '-hide_banner',
+      '-ss', String(start.toFixed(3)),
+      '-i', payload.inputPath,
+      '-t', String(length.toFixed(3)),
+      ...buildVideoArgs(payload),
+      '-progress', 'pipe:1',
+      '-nostats',
+      outputPath
+    ]
+
+    onProgress?.({
+      percent: Math.round((index / total) * 100),
+      line: `Preparando parte ${index + 1} de ${total}...`
+    })
+    await runConversion({
+      ffmpegPath,
+      args,
+      durationSeconds: length,
+      onProgress: (progress) => onProgress?.({
+        percent: Math.round(((index + (Number(progress.percent) || 0) / 100) / total) * 100),
+        line: `Parte ${index + 1}/${total} — ${Math.round(Number(progress.percent) || 0)}%`
+      })
+    })
+    outputPaths.push(outputPath)
+  }
+
+  return {
+    outputPaths,
+    outputFolder: path.dirname(outputPaths[0]),
+    commandPreview: `Dividido em ${total} partes com ffmpeg.`
+  }
+}
+
 async function detectCapabilities(context) {
   return getCapabilities(context)
 }
@@ -251,11 +316,16 @@ async function convert(payload, context, onProgress) {
     throw new Error('Arquivo de origem nao encontrado.')
   }
 
+  const durationSeconds = Number(payload.duration) || 0
+  if (Number(payload.splitParts) > 0) {
+    return splitMedia(payload, context, onProgress, durationSeconds)
+  }
+
   const { args, outputPath } = buildCommand(payload)
   await runConversion({
     ffmpegPath,
     args,
-    durationSeconds: Number(payload.duration) || 0,
+    durationSeconds,
     onProgress
   })
 

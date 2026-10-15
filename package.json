@@ -70,6 +70,7 @@
       "services/**/*",
       "assets/icon.png",
       "assets/icon.ico",
+      "assets/ui/**/*",
       "!**/*.map"
     ]
   },

@@ -9,7 +9,7 @@ function stripExtension(fileName) {
 }
 
 export class ConvertTab {
-  constructor({ root, api, setStatus, appInfo }) {
+  constructor({ root, api, setStatus, appInfo, settings }) {
     this.root = root
     this.api = api
     this.setStatus = setStatus
@@ -19,7 +19,9 @@ export class ConvertTab {
       mediaInfo: null,
       capabilities: appInfo.ffmpegCapabilities || { av1: false },
       converting: appInfo.conversionState === 'converting',
-      outputFolder: '',
+      outputFolder: settings?.downloadFolder || '',
+      defaultFolder: settings?.downloadFolder || '',
+      splitParts: 0,
       outputName: '',
       outputFormat: 'MP4',
       videoCodec: 'H.264',
@@ -77,6 +79,13 @@ export class ConvertTab {
     this.setStatus(`Arquivo analisado: ${mediaInfo.fileName}`)
   }
 
+  setDefaultFolder(folder) {
+    this.state.defaultFolder = folder
+    if (!this.state.outputFolder) this.state.outputFolder = folder
+    const label = this.root.querySelector('.destination-path')
+    if (label) label.textContent = this.state.outputFolder || folder || 'Downloads'
+  }
+
   render() {
     const mediaInfo = this.state.mediaInfo
     const showVideoOptions = mediaInfo && mediaInfo.type === 'video'
@@ -89,6 +98,7 @@ export class ConvertTab {
       ${showVideoOptions ? renderVideoOptions(this.state, this.state.capabilities) : ''}
       ${showGifOptions ? renderGifOptions(this.state) : ''}
       ${showAudioOptions ? renderAudioOptions(this.state, mediaInfo.type === 'audio' ? 'audio' : 'extract') : ''}
+      ${showVideoOptions ? `<div class="card"><label class="toggle-row"><input type="checkbox" id="convert-split-toggle" ${this.state.splitParts ? 'checked' : ''}><span class="toggle-copy"><span class="toggle-title">Dividir em vários clipes</span><span class="toggle-sub">Cria arquivos consecutivos com a mesma duração aproximada.</span></span></label><div class="field" id="convert-split-count-wrap" style="${this.state.splitParts ? '' : 'display:none;'}margin-top:12px"><label>Quantidade de partes</label><select id="convert-split-count">${[2,3,4,5,6,8,10,12,15,20,30].map(n => `<option value="${n}" ${Number(this.state.splitParts || 6) === n ? 'selected' : ''}>${n} partes</option>`).join('')}</select></div></div>` : ''}
       ${this.renderOutputCard(mediaInfo)}
     `
 
@@ -107,13 +117,7 @@ export class ConvertTab {
             <label>Nome final do arquivo</label>
             <input type="text" id="convert-output-name" value="${this.escapeAttribute(this.state.outputName)}" placeholder="nome do arquivo final">
           </div>
-          <div class="field">
-            <label>Pasta de destino</label>
-            <div class="path-row">
-              <input type="text" id="convert-output-folder" value="${this.escapeAttribute(this.state.outputFolder)}" placeholder="pasta final">
-              <button class="icon-btn" id="convert-pick-folder" type="button">...</button>
-            </div>
-          </div>
+          <div class="field"><label>Pasta de destino</label><div class="compact-destination"><div class="destination-copy"><div class="destination-title">Salvar em</div><div class="destination-path">${this.escapeAttribute(this.state.outputFolder || this.state.defaultFolder || 'Downloads')}</div></div><button class="folder-action" id="convert-pick-folder" type="button" aria-label="Escolher pasta"><img class="raster-icon" src="./assets/ui/folder.png" alt=""></button></div><input type="hidden" id="convert-output-folder" value="${this.escapeAttribute(this.state.outputFolder)}"></div>
         </div>
 
         <div class="action-row" style="grid-template-columns: 1fr;">
@@ -182,6 +186,13 @@ export class ConvertTab {
         this.render()
       }
     })
+
+    const splitToggle = this.root.querySelector('#convert-split-toggle')
+    splitToggle?.addEventListener('change', (event) => {
+      this.state.splitParts = event.target.checked ? (Number(this.state.splitParts) || 6) : 0
+      this.render()
+    })
+    this.root.querySelector('#convert-split-count')?.addEventListener('change', (event) => { this.state.splitParts = Number(event.target.value) })
 
     startButton?.addEventListener('click', () => this.startConversion())
     openFolderButton?.addEventListener('click', () => {
@@ -316,6 +327,7 @@ export class ConvertTab {
       mediaType: mediaInfo.type,
       duration: mediaInfo.duration,
       outputFolder: this.state.outputFolder,
+      splitParts: this.state.splitParts,
       outputName: this.state.outputName,
       outputFormat: this.state.outputFormat,
       videoCodec: this.state.videoCodec,
@@ -359,7 +371,7 @@ export class ConvertTab {
       this.state.lastOutputFolder = result.outputFolder
       this.state.result = {
         type: 'success',
-        message: `Conversao concluida: ${result.outputPath}`,
+        message: result.outputPaths ? `${result.outputPaths.length} clipes exportados para ${result.outputFolder}` : `Conversao concluida: ${result.outputPath}`,
         folder: result.outputFolder
       }
       this.state.logLines.push(`Comando final: ${result.commandPreview}`)
