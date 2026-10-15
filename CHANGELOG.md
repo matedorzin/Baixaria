@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## [1.1.3] - 2026-10-15
+
+- Baixar, Clipes e leitura de playlists tentam outras rotas públicas do YouTube quando a leitura padrão é recusada.
+- A sessão local continua sendo usada quando estiver disponível e as rotas públicas não resolverem.
+
 ## [1.1.2] - 2026-10-15
 
 - Busca mais robusta da sessão local configurada neste PC quando o YouTube exige autenticação em Baixar ou Clipes.

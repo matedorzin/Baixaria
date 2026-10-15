@@ -231,14 +231,22 @@ function recordYoutubeAttempt(operation, url, mode, result) {
 async function readYtDlpWithFallback(operation, ytdlpPath, commonArgs, url, denoPath, cookiesPath, cookiesFromBrowser) {
   let currentCookiesPath = cookiesPath || (isYoutubeUrl(url) && !cookiesFromBrowser ? getCookiesPath() : null)
   let currentBrowser = cookiesFromBrowser
+  let guestClient = ''
   const run = async () => {
-    const result = await runYtDlpProcess(ytdlpPath, [...commonArgs, ...cookieArgs(currentCookiesPath, currentBrowser), url], denoPath)
-    recordYoutubeAttempt(operation, url, currentCookiesPath ? 'cookies' : currentBrowser ? 'browser' : 'direct', result)
+    const result = await runYtDlpProcess(ytdlpPath, [...commonArgs, ...youtubeGuestClientArgs(url, guestClient), ...cookieArgs(currentCookiesPath, currentBrowser), url], denoPath)
+    recordYoutubeAttempt(operation, url, currentCookiesPath ? 'cookies' : currentBrowser ? 'browser' : guestClient || 'direct', result)
     return result
   }
 
   let result = await run()
-  const blocked = () => result.code !== 0 && isYoutubeAuthError(`${result.stderr || ''}\n${result.stdout || ''}\n${result.error || ''}`)
+  const blocked = () => result.code !== 0 && isYoutubeAccessError(`${result.stderr || ''}\n${result.stdout || ''}\n${result.error || ''}`)
+  if (isYoutubeUrl(url) && !currentCookiesPath && !currentBrowser) {
+    for (const client of YOUTUBE_GUEST_CLIENTS) {
+      if (!blocked()) break
+      guestClient = client
+      result = await run()
+    }
+  }
   if (isYoutubeUrl(url) && blocked() && !currentCookiesPath && !currentBrowser) {
     const localCookiesPath = getCookiesPath()
     if (localCookiesPath) {
@@ -316,6 +324,18 @@ function isYoutubeUrl(value) {
   } catch {
     return false
   }
+}
+
+const YOUTUBE_GUEST_CLIENTS = ['web_embedded', 'android']
+
+function youtubeGuestClientArgs(url, client) {
+  return isYoutubeUrl(url) && YOUTUBE_GUEST_CLIENTS.includes(client)
+    ? ['--extractor-args', `youtube:player_client=${client}`]
+    : []
+}
+
+function isYoutubeAccessError(message) {
+  return isYoutubeAuthError(message) || /http error 403|403 forbidden/i.test(String(message || ''))
 }
 
 function isSupportedClipUrl(value) {
@@ -627,6 +647,7 @@ function buildDownloadArgs(options, env) {
     commonArgs.push('--js-runtimes', `deno:${env.denoPath}`)
   }
 
+  commonArgs.push(...youtubeGuestClientArgs(env.trimmedUrl, options._guestClient))
   commonArgs.push(...cookieArgs(env.cookiesPath, env.cookiesFromBrowser))
 
   const playlistItems = playlistMode ? compactIndices(options.selectedIndices || []) : ''
@@ -762,7 +783,7 @@ async function beginDownload(options, source = 'start') {
       const action = activeDownload.action
       activeDownload.proc = null
       activeDownload.action = null
-      recordYoutubeAttempt(source, env.trimmedUrl, env.cookiesPath ? 'cookies' : env.cookiesFromBrowser ? 'browser' : 'direct', { code, stdout: output })
+      recordYoutubeAttempt(source, env.trimmedUrl, env.cookiesPath ? 'cookies' : env.cookiesFromBrowser ? 'browser' : options._guestClient || 'direct', { code, stdout: output })
 
       if (action === 'stop') {
         sendDownloadState('idle')
@@ -783,7 +804,15 @@ async function beginDownload(options, source = 'start') {
       }
 
       const details = output.slice(-500)
-      if (!options._localAuthRetry && !env.cookiesPath && !env.cookiesFromBrowser && isYoutubeUrl(env.trimmedUrl) && isYoutubeAuthError(output)) {
+      if (!env.cookiesPath && !env.cookiesFromBrowser && isYoutubeUrl(env.trimmedUrl) && isYoutubeAccessError(output)) {
+        const nextClient = YOUTUBE_GUEST_CLIENTS[options._guestClient ? YOUTUBE_GUEST_CLIENTS.indexOf(options._guestClient) + 1 : 0]
+        if (nextClient) {
+          sendDownloadProgress({ line: `Tentando outra rota pública do YouTube (${nextClient})…` })
+          beginDownload({ ...options, _guestClient: nextClient }, source).then(resolve)
+          return
+        }
+      }
+      if (!options._localAuthRetry && !env.cookiesPath && !env.cookiesFromBrowser && isYoutubeUrl(env.trimmedUrl) && isYoutubeAccessError(output)) {
         const localCookiesPath = getCookiesPath()
         if (localCookiesPath) {
           sendDownloadProgress({ line: 'O YouTube recusou a tentativa direta. Repetindo com os cookies locais deste PC…' })
@@ -807,9 +836,9 @@ async function beginDownload(options, source = 'start') {
         resolve({ error: 'O YouTube bloqueou este vídeo mesmo após a tentativa com os cookies locais deste PC.' })
         return
       }
-      if (!env.cookiesPath && !env.cookiesFromBrowser && isYoutubeUrl(env.trimmedUrl) && isYoutubeAuthError(output)) {
+      if (!env.cookiesPath && !env.cookiesFromBrowser && isYoutubeUrl(env.trimmedUrl) && isYoutubeAccessError(output)) {
         sendDownloadState('idle')
-        resolve({ error: 'O YouTube pediu autenticação, mas esta instalação não encontrou uma sessão local neste PC.' })
+        resolve({ error: 'O YouTube recusou as rotas públicas deste vídeo. Tente novamente mais tarde.' })
         return
       }
       sendDownloadState('idle')
@@ -819,7 +848,7 @@ async function beginDownload(options, source = 'start') {
     proc.on('error', (error) => {
       activeDownload.proc = null
       activeDownload.action = null
-      recordYoutubeAttempt(source, env.trimmedUrl, env.cookiesPath ? 'cookies' : env.cookiesFromBrowser ? 'browser' : 'direct', { error: error.message })
+      recordYoutubeAttempt(source, env.trimmedUrl, env.cookiesPath ? 'cookies' : env.cookiesFromBrowser ? 'browser' : options._guestClient || 'direct', { error: error.message })
       sendDownloadState('idle')
       resolve({
         error: `Falha ao iniciar o processo: ${error.message}`
@@ -1079,7 +1108,7 @@ registerTrustedHandle('fetch-clip-info', async (event, url, selectedCookiesPath,
     if (blocked) {
       return { error: result.usedLocalCookies
         ? 'O YouTube recusou este vídeo mesmo após duas tentativas com a sessão local.'
-        : 'O YouTube pediu autenticação para este vídeo, mas esta cópia do Baixaria não encontrou a sessão local.' }
+        : 'O YouTube recusou as rotas públicas deste vídeo. Tente novamente mais tarde.' }
     }
     return { error: describeYtDlpError(details) || `Não foi possível ler esse vídeo. ${details}`.trim() }
   }
