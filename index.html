@@ -1299,10 +1299,72 @@ input[type="text"], input[type="url"], input[type="number"], select { border-rad
     justify-content: flex-start;
   }
 }
+
+/* Home: as tres capas aprovadas sao a propria arte do menu. As areas de clique
+   acompanham a imagem proporcionalmente, sem cobrir os textos desenhados. */
+.layout.home-active {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 56px minmax(0, 1fr);
+  background: #000;
+}
+.layout.home-active .tab-strip,
+.layout.home-active .status-bar,
+.layout.home-active .titlebar-settings,
+.layout.home-active .titlebar-logo,
+.layout.home-active .screen-header { display: none; }
+.layout.home-active .titlebar { background: #000; border-bottom: 0; box-shadow: none; }
+.layout.home-active .content {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+}
+.layout.home-active .content::before { display: none; }
+.home-panel.active { display: grid; place-items: center; width: 100%; height: 100%; }
+.home-stage {
+  position: relative;
+  width: min(100%, calc((100vh - 56px) * 1.7768));
+  aspect-ratio: 1672 / 941;
+  max-height: 100%;
+  overflow: hidden;
+  background: #000;
+  animation: home-reveal .36s ease-out both;
+}
+.home-art { display: block; width: 100%; height: 100%; object-fit: fill; }
+.home-hotspot {
+  position: absolute;
+  display: block;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color .16s ease, filter .16s ease;
+}
+.home-hotspot:hover,
+.home-hotspot:focus-visible { background: rgba(255, 115, 42, .16); filter: brightness(1.18); }
+.home-hotspot:focus-visible { outline: 3px solid #ffc080; outline-offset: -4px; }
+.home-hotspot:active { background: rgba(255, 115, 42, .27); }
+.home-settings { left: 85.1%; top: 5.4%; width: 13.9%; height: 7.5%; }
+.home-download { left: 55.5%; top: 23.2%; width: 43.6%; height: 26%; clip-path: polygon(16% 15%, 100% 0, 92% 86%, 0 100%); }
+.home-clips { left: 56.1%; top: 47.1%; width: 43%; height: 24.5%; clip-path: polygon(15% 16%, 100% 0, 92% 88%, 0 100%); }
+.home-convert { left: 55.5%; top: 70.1%; width: 43.6%; height: 25.2%; clip-path: polygon(16% 15%, 100% 0, 92% 86%, 0 100%); }
+.home-nav-icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  background: url('./assets/ui/home-bald.png') -16px -10px / 568px 320px no-repeat;
+}
+@keyframes home-reveal { from { opacity: 0; transform: scale(1.014); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .home-stage { animation: none; }
+  .home-hotspot { transition: none; }
+}
 </style>
 </head>
 <body>
-<div class="layout">
+<div class="layout home-active">
   <div class="titlebar">
     <div class="titlebar-logo">
       <div class="logo-box"><img src="./assets/icon.png" alt=""></div>
@@ -1317,7 +1379,11 @@ input[type="text"], input[type="url"], input[type="number"], select { border-rad
 
   <div class="tab-strip">
     <div class="nav-heading">ESPAÇO DE TRABALHO <small>ワークスペース</small></div>
-    <button class="tab-btn active" id="tab-download-btn" data-tab="download" type="button">
+    <button class="tab-btn" id="tab-home-btn" data-tab="home" type="button">
+      <span class="home-nav-icon" aria-hidden="true"></span>
+      <span class="tab-copy"><span class="tab-title">Home</span><span class="tab-jp">ホーム</span></span>
+    </button>
+    <button class="tab-btn" id="tab-download-btn" data-tab="download" type="button">
       <span class="tab-icon"><img src="./assets/ui/nav-download.png" alt=""></span>
       <span class="tab-copy"><span class="tab-title">Baixar</span><span class="tab-jp">ダウンロード</span></span>
     </button>
@@ -1337,7 +1403,16 @@ input[type="text"], input[type="url"], input[type="number"], select { border-rad
 
   <div class="content">
     <div class="screen-header" aria-hidden="true"><span class="screen-index" id="screen-index">01</span><div><strong id="screen-title">BAIXAR</strong><small id="screen-japanese">ダウンロード</small></div><span class="screen-rule"></span></div>
-    <div id="download-panel" class="tab-panel active"></div>
+    <div id="home-panel" class="tab-panel home-panel active">
+      <div class="home-stage">
+        <img class="home-art" id="home-art" src="./assets/ui/home-bald.png" alt="Arte do menu Baixaria: personagem em um corredor de perspectiva laranja e vermelho">
+        <button class="home-hotspot home-settings" id="home-settings-btn" type="button" aria-label="Abrir configurações" title="Configurações"></button>
+        <button class="home-hotspot home-download" id="home-download-btn" type="button" aria-label="Abrir Baixar" title="Baixar"></button>
+        <button class="home-hotspot home-clips" id="home-clips-btn" type="button" aria-label="Abrir Clipes" title="Clipes"></button>
+        <button class="home-hotspot home-convert" id="home-convert-btn" type="button" aria-label="Abrir Converter" title="Converter"></button>
+      </div>
+    </div>
+    <div id="download-panel" class="tab-panel"></div>
     <div id="clips-panel" class="tab-panel"></div>
     <div id="convert-panel" class="tab-panel"></div>
     <div id="settings-panel" class="tab-panel">

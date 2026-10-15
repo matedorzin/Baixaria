@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## [1.1.1] - 2026-10-15
+
+- Nova tela inicial com três artes aprovadas, alternadas a cada abertura sem repetir a anterior.
+- Acesso a Baixar, Clipes, Converter e Configurações diretamente pelo menu ilustrado.
+- Barra lateral exibida apenas após entrar em uma área do aplicativo.
+
 ## [1.1.0] - 2026-10-15
 
 - Criação de clipes a partir de vídeos online, com prévia, seleção de trechos e exportação.

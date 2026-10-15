@@ -15,6 +15,17 @@ let downloadTab
 let convertTab
 let clipTab
 
+const homeBanners = [
+  './assets/ui/home-bald.png',
+  './assets/ui/home-demon.png',
+  './assets/ui/home-oni.png'
+]
+const lastHomeBanner = localStorage.getItem('lastHomeBanner')
+const bannerChoices = homeBanners.map((_, index) => index).filter((index) => String(index) !== lastHomeBanner)
+const homeBannerIndex = bannerChoices[Math.floor(Math.random() * bannerChoices.length)]
+localStorage.setItem('lastHomeBanner', String(homeBannerIndex))
+document.getElementById('home-art').src = homeBanners[homeBannerIndex]
+
 const japaneseLabels = new Map([
   ['Criar clipes', 'クリップ作成'], ['Exportar clipes', '書き出し'], ['Saida', '出力'],
   ['Link do video ou playlist', '動画リンク'], ['Formato', '形式'],
@@ -50,16 +61,20 @@ function setStatus(text, type = '') {
 }
 
 function activateTab(tabName) {
+  document.querySelector('.layout').classList.toggle('home-active', tabName === 'home')
   const screens = {
     download: ['01', 'BAIXAR', 'ダウンロード'],
     clips: ['02', 'CLIPES', 'クリップ'],
     convert: ['03', 'CONVERTER', '変換'],
     settings: ['04', 'CONFIGURAÇÕES', '設定']
   }
-  const [number, title, japanese] = screens[tabName] || screens.download
-  document.getElementById('screen-index').textContent = number
-  document.getElementById('screen-title').textContent = title
-  document.getElementById('screen-japanese').textContent = japanese
+  const screen = screens[tabName]
+  if (screen) {
+    const [number, title, japanese] = screen
+    document.getElementById('screen-index').textContent = number
+    document.getElementById('screen-title').textContent = title
+    document.getElementById('screen-japanese').textContent = japanese
+  }
   document.querySelectorAll('.tab-btn').forEach((button) => {
     button.classList.toggle('active', button.dataset.tab === tabName)
   })
@@ -68,7 +83,7 @@ function activateTab(tabName) {
     panel.classList.toggle('active', panel.id === `${tabName}-panel`)
   })
   const labels = { download: 'Baixar', clips: 'Clipes', convert: 'Converter', settings: 'Configurações' }
-  setStatus(`Aba ${labels[tabName] || 'Baixar'} pronta.`)
+  if (labels[tabName]) setStatus(`Aba ${labels[tabName]} pronta.`)
 }
 
 function renderUpdaterState(data) {
@@ -134,6 +149,11 @@ function renderUpdaterState(data) {
 async function boot() {
   document.getElementById('minimize-btn').addEventListener('click', () => window.api.minimize())
   document.getElementById('close-btn').addEventListener('click', () => window.api.close())
+  document.getElementById('tab-home-btn').addEventListener('click', () => activateTab('home'))
+  document.getElementById('home-download-btn').addEventListener('click', () => activateTab('download'))
+  document.getElementById('home-clips-btn').addEventListener('click', () => activateTab('clips'))
+  document.getElementById('home-convert-btn').addEventListener('click', () => activateTab('convert'))
+  document.getElementById('home-settings-btn').addEventListener('click', () => activateTab('settings'))
   updateCheckButton.addEventListener('click', async () => {
     updateCheckButton.disabled = true
     updatePanel.hidden = false

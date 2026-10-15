@@ -824,8 +824,8 @@ async function beginDownload(options, source = 'start') {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1040,
-    height: 920,
+    width: 1200,
+    height: 760,
     minWidth: 820,
     minHeight: 760,
     frame: false,
