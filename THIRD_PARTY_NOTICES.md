@@ -7,3 +7,5 @@ O instalador inclui executáveis de terceiros baixados durante a compilação:
 - **Deno**: executável oficial para Windows x64 publicado em [denoland/deno](https://github.com/denoland/deno).
 
 O workflow de release verifica os checksums disponíveis antes de usar os executáveis. Consulte os projetos de origem para os textos completos de licença e código-fonte de cada versão distribuída.
+
+As fontes Teko e Chakra Petch são distribuídas pelo projeto [Google Fonts](https://github.com/google/fonts) sob a SIL Open Font License 1.1. Os textos das licenças estão em `assets/fonts/TEKO-OFL.txt` e `assets/fonts/CHAKRAPETCH-OFL.txt`.

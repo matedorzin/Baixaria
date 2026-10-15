@@ -1,6 +1,6 @@
 {
   "name": "baixaria-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Baixaria — downloads e conversões de vídeo e áudio",
   "author": "matedorzin",
   "license": "UNLICENSED",
@@ -71,6 +71,7 @@
       "assets/icon.png",
       "assets/icon.ico",
       "assets/ui/**/*",
+      "assets/fonts/**/*",
       "!**/*.map"
     ]
   },

@@ -5,7 +5,7 @@ const { spawn } = require('child_process')
 const fs = require('fs')
 const { randomUUID } = require('crypto')
 const { fileURLToPath } = require('url')
-const { probeMedia } = require('./services/FfprobeService')
+const { probeMedia, getMediaThumbnail } = require('./services/FfprobeService')
 const { convert, detectCapabilities } = require('./services/ConversionService')
 const { cookieArgs, describeYtDlpError, isYoutubeAuthError, normalizeCookieBrowser } = require('./services/YtDlpOptions')
 const { autoUpdater } = require('electron-updater')
@@ -1171,6 +1171,9 @@ registerTrustedHandle('probe-media', async (event, filePath) => {
       throw new Error('Selecione um arquivo de mídia válido.')
     }
     const mediaInfo = await probeMedia(filePath, getRuntimeContext())
+    if (mediaInfo.hasVideo) {
+      mediaInfo.thumbnail = await getMediaThumbnail(filePath, getRuntimeContext(), mediaInfo)
+    }
     const ffmpegCapabilities = await detectCapabilities(getRuntimeContext())
     return {
       success: true,

@@ -1,10 +1,13 @@
 # Histórico de versões
 
-## Próxima versão
+## [1.1.0] - 2026-10-15
 
+- Criação de clipes a partir de vídeos online, com prévia, seleção de trechos e exportação.
 - Download direto restaurado; o app não fecha nem reinicia o Chrome após bloqueios do YouTube.
 - Quando o YouTube exige login, o app tenta uma sessão local previamente configurada, sem copiar cookies do Chrome.
-- Navegação lateral e formulários reorganizados em coluna para reduzir a poluição visual.
+- Navegação lateral, tipografia e controles reorganizados.
+- Conversor com arraste de arquivo, miniatura e prévia adaptada a vídeos verticais.
+- Conversão de vídeos HDR do iPhone para MP4 SDR com cores ajustadas e metadados HDR removidos.
 
 ## [1.0.0] - 2026-10-14
 

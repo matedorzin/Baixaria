@@ -72,6 +72,7 @@ export class ConvertTab {
     this.state.audioFormat = mediaInfo.type === 'audio' ? 'MP3' : this.state.audioFormat
     this.state.convertToGif = false
     this.state.extractAudioOnly = false
+    this.state.hdrToSdr = ['arib-std-b67', 'smpte2084'].includes(mediaInfo.colorTransfer)
     this.state.result = null
     this.state.progress = 0
     this.state.logLines = [`Arquivo detectado: ${mediaInfo.fileName}`]
@@ -93,7 +94,7 @@ export class ConvertTab {
     const showGifOptions = mediaInfo && mediaInfo.type === 'video' && this.state.convertToGif
 
     this.root.innerHTML = `
-      ${renderFileDropZone({ selectedFileName: this.state.selectedFilePath })}
+      ${renderFileDropZone({ selectedFileName: mediaInfo?.fileName, thumbnail: mediaInfo?.thumbnail, aspect: mediaInfo?.displayAspect })}
       ${mediaInfo ? renderMediaInfoCard(mediaInfo) : ''}
       ${showVideoOptions ? renderVideoOptions(this.state, this.state.capabilities) : ''}
       ${showGifOptions ? renderGifOptions(this.state) : ''}
@@ -149,7 +150,6 @@ export class ConvertTab {
     const pickFolder = this.root.querySelector('#convert-pick-folder')
     const startButton = this.root.querySelector('#convert-start-btn')
     const openFolderButton = this.root.querySelector('#convert-open-folder-btn')
-    const pickMediaButton = this.root.querySelector('#pick-media-btn')
 
     dropZone.addEventListener('dragenter', (event) => {
       event.preventDefault()
@@ -159,15 +159,22 @@ export class ConvertTab {
       event.preventDefault()
       dropZone.classList.add('dragging')
     })
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('dragging')
+    dropZone.addEventListener('dragleave', (event) => {
+      if (!dropZone.contains(event.relatedTarget)) dropZone.classList.remove('dragging')
     })
     dropZone.addEventListener('drop', (event) => this.handleDrop(event))
 
-    pickMediaButton.addEventListener('click', async () => {
+    const pickMedia = async () => {
       const filePath = await this.api.selectMediaFile()
       if (filePath) {
         await this.probeSelectedFile(filePath)
+      }
+    }
+    dropZone.addEventListener('click', pickMedia)
+    dropZone.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        pickMedia()
       }
     })
 
@@ -290,7 +297,12 @@ export class ConvertTab {
     const dropZone = this.root.querySelector('#convert-drop-zone')
     dropZone.classList.remove('dragging')
     const file = event.dataTransfer.files?.[0]
-    const filePath = file?.path
+    let filePath = ''
+    try {
+      if (file) filePath = this.api.getPathForFile(file)
+    } catch {
+      filePath = ''
+    }
     if (!filePath) {
       this.setStatus('Nao consegui ler o arquivo arrastado.', 'error')
       return
@@ -337,6 +349,7 @@ export class ConvertTab {
       videoFps: this.state.videoFps,
       extractAudioOnly: this.state.extractAudioOnly,
       hdrToSdr: this.state.hdrToSdr,
+      sourceColorTransfer: mediaInfo.colorTransfer,
       audioExtractFormat: this.state.audioExtractFormat,
       audioFormat: this.state.audioFormat,
       audioBitrate: this.state.audioBitrate,

@@ -7,6 +7,9 @@
   content="default-src 'self'; img-src 'self' data: https://i.ytimg.com https://*.ytimg.com https://static-cdn.jtvnw.net https://*.jtvnw.net; media-src 'self' baixaria-media:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
 <title>Baixaria</title>
 <style>
+@font-face { font-family: 'Baixaria Display'; src: url('./assets/fonts/Teko-wght.ttf') format('truetype'); font-style: normal; font-weight: 300 700; font-display: swap; }
+@font-face { font-family: 'Baixaria UI'; src: url('./assets/fonts/ChakraPetch-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Baixaria UI'; src: url('./assets/fonts/ChakraPetch-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700; font-display: swap; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
@@ -254,9 +257,7 @@ select:focus {
 
 select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%238a8a97' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
+  appearance: auto;
 }
 
 .row,
@@ -479,6 +480,12 @@ select {
   justify-content: center;
   text-align: center;
   transition: all 0.15s;
+  cursor: pointer;
+}
+.drop-zone:hover, .drop-zone:focus-visible {
+  border-color: var(--accent);
+  background: rgba(255, 138, 42, 0.07);
+  outline: none;
 }
 
 .drop-zone.dragging {
@@ -487,8 +494,21 @@ select {
 }
 
 .drop-copy {
-  max-width: 520px;
+  max-width: 100%;
+  width: 100%;
 }
+.drop-thumbnail {
+  display: block;
+  width: min(100%, 420px);
+  height: 236px;
+  margin: 0 auto 14px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: #06151b;
+}
+.drop-thumbnail.portrait { width: min(100%, 230px); height: 330px; }
+.drop-thumbnail.square { width: min(100%, 300px); height: 300px; }
+.drop-zone.has-file { min-height: 252px; }
 
 .drop-icon {
   width: 54px;
@@ -520,7 +540,9 @@ select {
   font-size: 12px;
   color: var(--text);
   font-family: 'JetBrains Mono', monospace;
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .info-grid {
@@ -929,6 +951,12 @@ details.advanced-options[open] summary { margin-bottom: 12px; color: var(--text)
 .clip-preview-frame.ratio-portrait { aspect-ratio: 9 / 16; width: min(100%, 236px); max-height: min(48vh, 420px); }
 .clip-preview-frame.ratio-square { aspect-ratio: 1 / 1; width: min(100%, 420px); max-height: min(48vh, 420px); }
 .clip-preview { display: block; width: 100%; height: 100%; border-radius: 12px; background: #00171d; object-fit: contain; }
+.clip-preview-cover { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.ratio-landscape .clip-preview-cover { object-fit: contain; }
+.clip-buffering { position: absolute; z-index: 3; inset: auto 12px 12px; display: none; align-items: center; justify-content: center; gap: 9px; padding: 8px 12px; background: rgba(1, 20, 26, .88); color: #f5d7b5; font: 700 11px 'Baixaria UI', sans-serif; pointer-events: none; }
+.clip-buffering.active { display: flex; }
+.clip-loader { display: inline-block; width: 19px; height: 19px; flex: none; border: 2px solid rgba(255, 155, 57, .25); border-top-color: #ff9d39; border-radius: 50%; animation: clip-loader-spin .75s linear infinite; }
+@keyframes clip-loader-spin { to { transform: rotate(360deg); } }
 .clip-preview-scrub { position: absolute; inset: 0; z-index: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: center; padding: 14px; background: rgba(0, 19, 25, .87); }
 .clip-preview-scrub[hidden] { display: none; }
 .clip-scrub-card { min-width: 0; overflow: hidden; border: 1px solid rgba(255,255,255,.3); border-radius: 8px; background: var(--surface-2); }
@@ -936,12 +964,17 @@ details.advanced-options[open] summary { margin-bottom: 12px; color: var(--text)
 .clip-scrub-card video { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #00171d; }
 .clip-player-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0 4px; color: var(--muted); font-size: 12px; }
 .clip-volume { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.clip-volume .ghost-btn { min-width: 34px; padding: 5px; }
+.clip-icon-button { display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 5px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; transition: background .16s, transform .16s, filter .16s; }
+.clip-icon-button img { width: 27px; height: 27px; object-fit: contain; }
+.clip-icon-button:hover, .clip-icon-button:focus-visible { background: rgba(255, 144, 45, .13); filter: drop-shadow(0 0 6px rgba(255, 130, 38, .55)); transform: scale(1.12); outline: none; }
+.clip-icon-button:disabled { opacity: .35; cursor: default; transform: none; }
 .clip-volume input { width: 84px; accent-color: var(--accent-2); }
 .clip-boundary-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
-.clip-boundary { display: flex; align-items: center; gap: 9px; min-width: 0; color: var(--muted); font-size: 12px; }
-.clip-boundary-image { width: 92px; aspect-ratio: 16 / 9; flex: none; overflow: hidden; border-radius: 4px; background: #00171d; }
+.clip-boundary { display: flex; flex-direction: column; align-items: stretch; gap: 7px; min-width: 0; color: var(--muted); font-size: 12px; }
+.clip-boundary-image { display: grid; place-items: center; width: 100%; height: 144px; overflow: hidden; border-radius: 4px; background: #00171d; }
 .clip-boundary-image video, .clip-boundary-image img { width: 100%; height: 100%; object-fit: contain; }
+.clip-boundary-strip.portrait .clip-boundary-image { height: clamp(180px, 30vh, 290px); }
+.clip-boundary span { display: flex; justify-content: space-between; gap: 8px; }
 .clip-export-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
 .ratio-portrait .clip-preview-scrub { gap: 4px; padding: 6px; }
 .ratio-portrait .clip-scrub-card span { font-size: 10px; padding: 4px; }
@@ -971,6 +1004,7 @@ details.advanced-options[open] summary { margin-bottom: 12px; color: var(--text)
 .clip-slider::-moz-range-thumb { width: 12px; height: 12px; border: 2px solid var(--text); border-radius: 50%; background: var(--accent-2); pointer-events: auto; cursor: ew-resize; }
 .clip-range-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .clip-segment-list { display: grid; gap: 7px; }
+.clip-empty { padding: 14px 0; color: var(--muted); font-size: 12px; }
 .clip-segment-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
 .clip-segment-row.active { border-color: var(--accent-2); }
 .clip-segment-select { border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
@@ -1077,10 +1111,7 @@ input[type="text"], input[type="url"], input[type="number"], select { border-rad
 .clip-track-selection { border-radius: 2px; background: linear-gradient(90deg,#f9a332,#e56b2f); }
 .status-bar { background: #05151a; border-top-color: #315058; }
 .tab-strip {
-  background:
-    linear-gradient(180deg, rgba(5,21,26,.22), rgba(5,21,26,.72) 230px, #05151a 320px),
-    url('./assets/ui/hero-editorial.png') 26% top / auto 260px no-repeat,
-    #05151a;
+  background: #071a21;
 }
 .raster-icon { width: 22px; height: 22px; object-fit: contain; vertical-align: middle; flex: 0 0 auto; }
 .fmt-icon .raster-icon, .drop-icon .raster-icon { width: 30px; height: 30px; }
@@ -1200,16 +1231,72 @@ input[type="text"], input[type="url"], input[type="number"], select { border-rad
   #screen-index, #screen-title, #screen-japanese { animation: none !important; }
 }
 
+/* Menu compacto: controles agrupados, navegação legível e arte reservada aos ícones. */
+.layout { grid-template-columns: 248px minmax(0, 1fr); }
+.tab-strip { padding: 22px 10px; background: #071a21; }
+.tab-strip::before { content: none; }
+.nav-heading { padding: 0 10px 16px; }
+.tab-btn, .tab-btn:hover, .tab-btn.active {
+  width: 100%;
+  min-height: 62px;
+  gap: 9px;
+  padding: 8px 10px;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+.tab-copy { min-width: 0; }
+.tab-title { font: 700 15px/1.05 'Baixaria UI', 'Segoe UI', sans-serif; letter-spacing: 0; white-space: nowrap; }
+.tab-jp { margin-top: 4px; }
+.tab-icon { width: 42px; height: 42px; flex-basis: 42px; }
+.tab-btn[data-tab="settings"] .tab-icon { background: #ffc47b; border-radius: 3px; box-shadow: inset 0 0 0 1px #bd5c26; }
+.titlebar-settings { display: grid; place-items: center; background: #ffc47b; border-color: #bd5c26; }
+.titlebar-settings:hover, .titlebar-settings.active { background: #ffd59c; }
+.titlebar-settings img { width: 25px; height: 25px; }
+.logo-box, .logo-box img { width: 34px; height: 34px; }
+.titlebar-title { font: 600 27px/.8 'Baixaria Display', Impact, sans-serif; letter-spacing: .055em; }
+.titlebar-title small { margin-top: 5px; font-size: 9px; }
+.screen-header strong { font: 600 clamp(45px, 4.5vw, 61px)/.78 'Baixaria Display', Impact, sans-serif; letter-spacing: .025em; }
+.section-title { font: 600 25px/.9 'Baixaria Display', Impact, sans-serif; letter-spacing: .05em; }
+.tab-title, .fmt-label, .quality-choice strong, .primary-btn, .secondary-btn, .ghost-btn, .danger-btn, .toggle-title { font-family: 'Baixaria UI', 'Segoe UI', sans-serif; }
+.format-toggle, .quality-grid, .clip-export-modes, .inline-actions, .action-row, .toggle-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 7px;
+}
+.format-toggle { margin-bottom: 2px; }
+.fmt-btn { width: 176px; min-height: 62px; padding: 8px 10px; border-radius: 3px; display: grid; grid-template-columns: 32px minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; column-gap: 8px; row-gap: 2px; text-align: left; }
+.fmt-icon { grid-row: 1 / 3; display: grid; place-items: center; }
+.fmt-label, .fmt-sub { min-width: 0; text-align: left; }
+.fmt-sub { font-size: 10px; }
+.quality-grid { border: 0; padding: 0; }
+.quality-choice, .quality-choice.active { flex: 0 0 auto; min-width: 112px; min-height: 56px; padding: 7px 12px; border: 1px solid #315159; border-bottom: 2px solid #315159; border-radius: 3px; text-align: left; }
+.quality-choice:first-child { min-width: 145px; }
+.quality-choice.active { border-color: var(--accent-2); background: rgba(242,104,39,.16); }
+.clip-export-modes { margin-bottom: 9px; }
+.clip-export-modes .quality-choice { min-width: 142px; }
+.inline-actions > button, .action-row > button { flex: 0 0 auto; width: auto; min-width: 112px; }
+.action-row .primary-btn { min-width: 210px; }
+#clip-export { width: min(100%, 240px) !important; }
+.row.two:has(#download-url), .row.two:has(#clip-url) { grid-template-columns: minmax(0, 1fr) auto; }
+#download-analyze-playlist, #clip-load { min-width: 148px; }
+.clip-loading-preview { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; color: #a8c4c7; font: 700 13px 'Baixaria UI', sans-serif; letter-spacing: .04em; }
+.clip-loading-preview.ratio-landscape { aspect-ratio: 16 / 9; max-height: 300px; }
+.clip-loading-preview.ratio-portrait { aspect-ratio: 9 / 16; width: min(100%, 236px); max-height: 340px; }
+.clip-loading-preview.ratio-square { aspect-ratio: 1 / 1; width: min(100%, 300px); max-height: 300px; }
+@media (prefers-reduced-motion: reduce) { .clip-loader { animation: none; } }
+
 @media (max-width: 900px) {
-  .layout { grid-template-columns: 184px minmax(0, 1fr); }
-  .tab-strip { padding: 18px 9px; }
-  .tab-btn { min-height: 44px; gap: 9px; padding: 7px; }
-  .tab-icon { width: 38px; height: 38px; flex-basis: 38px; }
+  .layout { grid-template-columns: 214px minmax(0, 1fr); }
+  .tab-strip { padding: 18px 8px; }
+  .tab-btn { min-height: 58px; gap: 7px; padding: 7px; }
+  .tab-icon { width: 36px; height: 36px; flex-basis: 36px; }
+  .tab-title { font-size: 13px; }
   .content { padding: 16px 12px 20px; }
   .settings-grid { grid-template-columns: 1fr; }
 
   .action-row {
-    grid-template-columns: 1fr;
+    justify-content: flex-start;
   }
 }
 </style>

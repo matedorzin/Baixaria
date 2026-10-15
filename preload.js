@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
 contextBridge.exposeInMainWorld('api', {
   minimize: () => ipcRenderer.send('window-minimize'),
@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   openUninstallSettings: () => ipcRenderer.invoke('open-uninstall-settings'),
   selectCookiesFile: () => ipcRenderer.invoke('select-cookies-file'),
   selectMediaFile: () => ipcRenderer.invoke('select-media-file'),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
   openFolder: (folderPath) => ipcRenderer.send('open-folder', folderPath),
   checkYtdlp: () => ipcRenderer.invoke('check-ytdlp'),
   fetchPlaylist: (url, cookiesPath, cookiesFromBrowser) => ipcRenderer.invoke('fetch-playlist', url, cookiesPath, cookiesFromBrowser),

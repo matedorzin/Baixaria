@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const { getCapabilities, getFfmpegPath, runConversion } = require('./FfmpegService')
+const { buildHdrToSdrFilter } = require('./ColorFilter')
 
 function fileExists(filePath) {
   return Boolean(filePath) && fs.existsSync(filePath)
@@ -75,10 +76,6 @@ function buildScaleFilter(resolution) {
   return mapping[resolution] || ''
 }
 
-function buildToneMapFilter() {
-  return 'zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=mobius:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p'
-}
-
 function buildGifFilter(options) {
   const fps = Number(options.gifFps || 15)
   const width = options.gifWidth && options.gifWidth !== 'original'
@@ -107,12 +104,18 @@ function buildVideoArgs(payload) {
   const args = ['-map_metadata', '0']
 
   if (payload.hdrToSdr) {
-    filters.push(buildToneMapFilter())
+    filters.push(buildHdrToSdrFilter(payload.sourceColorTransfer))
   }
 
   const scaleFilter = buildScaleFilter(payload.videoResolution)
   if (scaleFilter) {
     filters.push(scaleFilter)
+  }
+
+  if (payload.hdrToSdr) {
+    // iPhone HLG/Dolby Vision frame metadata can survive tone mapping. Players
+    // may then interpret the BT.709 output as HDR and blow out its colors.
+    filters.push('sidedata=mode=delete')
   }
 
   if (payload.videoFps && payload.videoFps !== 'original') {
@@ -121,6 +124,18 @@ function buildVideoArgs(payload) {
 
   args.push('-c:v', mapVideoCodec(payload.videoCodec))
   args.push('-crf', getQualityCrf(payload.videoQualityPreset, payload.videoCrf))
+
+  if (payload.videoCodec === 'H.264') {
+    args.push('-pix_fmt', 'yuv420p', '-profile:v', 'high')
+  }
+
+  if (payload.hdrToSdr) {
+    args.push('-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709')
+  }
+
+  if (payload.outputFormat === 'MP4') {
+    args.push('-movflags', '+faststart')
+  }
 
   if (payload.outputFormat === 'WEBM') {
     args.push('-c:a', 'libopus')
