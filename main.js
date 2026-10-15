@@ -260,11 +260,12 @@ function getCookiesPath() {
     const pointers = [
       path.join(path.dirname(process.execPath), 'local-auth.json'),
       path.join(app.getPath('appData'), 'baixaria-desktop', 'local-auth.json'),
-      path.join(app.getPath('userData'), 'local-auth.json')
+      path.join(app.getPath('userData'), 'local-auth.json'),
+      ...(process.env.APPDATA ? [path.join(process.env.APPDATA, 'baixaria-desktop', 'local-auth.json')] : [])
     ]
     for (const pointer of new Set(pointers)) {
       try {
-        const { cookiesPath } = JSON.parse(fs.readFileSync(pointer, 'utf8'))
+        const { cookiesPath } = JSON.parse(fs.readFileSync(pointer, 'utf8').replace(/^\uFEFF/, ''))
         if (typeof cookiesPath === 'string' && path.isAbsolute(cookiesPath) && path.extname(cookiesPath).toLowerCase() === '.txt' && fs.statSync(cookiesPath).isFile()) {
           return cookiesPath
         }
@@ -804,6 +805,11 @@ async function beginDownload(options, source = 'start') {
       if (options._localAuthRetry && isYoutubeAuthError(output)) {
         sendDownloadState('idle')
         resolve({ error: 'O YouTube bloqueou este vídeo mesmo após a tentativa com os cookies locais deste PC.' })
+        return
+      }
+      if (!env.cookiesPath && !env.cookiesFromBrowser && isYoutubeUrl(env.trimmedUrl) && isYoutubeAuthError(output)) {
+        sendDownloadState('idle')
+        resolve({ error: 'O YouTube pediu autenticação, mas esta instalação não encontrou uma sessão local neste PC.' })
         return
       }
       sendDownloadState('idle')

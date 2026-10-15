@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## [1.1.2] - 2026-10-15
+
+- Busca mais robusta da sessão local configurada neste PC quando o YouTube exige autenticação em Baixar ou Clipes.
+- Mensagem mais clara quando o YouTube exige autenticação e o app não encontra uma sessão local.
+
 ## [1.1.1] - 2026-10-15
 
 - Nova tela inicial com três artes aprovadas, alternadas a cada abertura sem repetir a anterior.
