@@ -26,7 +26,7 @@ export function renderVideoOptions(state, capabilities) {
           <input type="checkbox" id="hdr-to-sdr" ${state.hdrToSdr ? 'checked' : ''} ${state.convertToGif || state.extractAudioOnly ? 'disabled' : ''}>
           <span class="toggle-copy">
             <span class="toggle-title">Corrigir HDR para SDR</span>
-            <span class="toggle-sub">Aplica tone mapping para Rec.709.</span>
+            <span class="toggle-sub">Aplica tone mapping Rec.709 apenas aos arquivos HDR da fila.</span>
           </span>
         </label>
         <label class="toggle-row" for="convert-to-gif">
@@ -63,12 +63,13 @@ export function renderVideoOptions(state, capabilities) {
       <div class="row three">
         <div class="field">
           <label>Qualidade</label>
-          <select id="video-quality-preset" ${disabled}>
+          <select id="video-quality-preset" ${disabled || state.optimizeEnabled ? 'disabled' : ''}>
             <option value="high" ${state.videoQualityPreset === 'high' ? 'selected' : ''}>Alta</option>
             <option value="medium" ${state.videoQualityPreset === 'medium' ? 'selected' : ''}>Media</option>
             <option value="low" ${state.videoQualityPreset === 'low' ? 'selected' : ''}>Baixa</option>
             <option value="custom" ${state.videoQualityPreset === 'custom' ? 'selected' : ''}>Personalizada com CRF</option>
           </select>
+          ${state.optimizeEnabled ? '<small>Qualidade controlada pela barra de otimização.</small>' : ''}
         </div>
         <div class="field">
           <label>Resolucao</label>

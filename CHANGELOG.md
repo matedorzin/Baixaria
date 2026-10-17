@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## [1.2.2] - 2026-10-16
+
+- Conversão de vários arquivos em sequência, com fila e progresso individual.
+- Otimização opcional do tamanho do vídeo, com níveis de qualidade e estimativa de tamanho antes da conversão.
+- Prévia do resultado estimado para ajudar a escolher a qualidade.
+- Vinheta original de vitória 8-bit ao concluir downloads, clipes e conversões, respeitando o volume e o mudo.
+
 ## [1.2.0] - 2026-10-15
 
 - Novo visual com navegação no topo, artes discretas por área e controles de janela ilustrados.

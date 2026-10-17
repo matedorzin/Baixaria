@@ -89,7 +89,7 @@ function buildMediaInfo(filePath, raw) {
   }
 }
 
-async function getMediaThumbnail(filePath, context, mediaInfo = {}) {
+async function getMediaThumbnail(filePath, context, mediaInfo = {}, seekTime = 0) {
   const ffmpegPath = getFfmpegPath(context)
   if (!ffmpegPath) return ''
   const isHdr = isHdrTransfer(mediaInfo.colorTransfer)
@@ -99,7 +99,8 @@ async function getMediaThumbnail(filePath, context, mediaInfo = {}) {
 
   return new Promise((resolve) => {
     const proc = spawn(ffmpegPath, [
-      '-hide_banner', '-loglevel', 'error', '-i', filePath,
+      '-hide_banner', '-loglevel', 'error',
+      ...(seekTime > 0 ? ['-ss', String(seekTime)] : []), '-i', filePath,
       '-frames:v', '1', '-vf', previewFilter,
       '-q:v', '4', '-f', 'image2pipe', '-vcodec', 'mjpeg', 'pipe:1'
     ], { windowsHide: true })

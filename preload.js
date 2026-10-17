@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('api', {
   getClipWaveform: (previewUrl, range) => ipcRenderer.invoke('clip-waveform', previewUrl, range),
   downloadClips: (options) => ipcRenderer.invoke('download-clips', options),
   probeMedia: (filePath) => ipcRenderer.invoke('probe-media', filePath),
+  previewConversion: (payload) => ipcRenderer.invoke('preview-conversion', payload),
   convertMedia: (payload) => ipcRenderer.invoke('convert-media', payload),
   startDownload: (options) => ipcRenderer.invoke('start-download', options),
   stopDownload: () => ipcRenderer.invoke('stop-download'),

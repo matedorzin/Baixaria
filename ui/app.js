@@ -33,6 +33,30 @@ function playClick() {
   } catch {}
 }
 
+function playSuccessSound() {
+  if (appSettings.soundMuted || appSettings.soundVolume <= 0) return
+  try {
+    clickAudioContext ||= new (window.AudioContext || window.webkitAudioContext)()
+    if (clickAudioContext.state === 'suspended') clickAudioContext.resume()
+    const start = clickAudioContext.currentTime + 0.02
+    ;[523.25, 659.25, 783.99, 1046.5].forEach((frequency, index) => {
+      const at = start + index * 0.115
+      const length = index === 3 ? 0.3 : 0.105
+      const oscillator = clickAudioContext.createOscillator()
+      const gain = clickAudioContext.createGain()
+      oscillator.type = 'square'
+      oscillator.frequency.setValueAtTime(frequency, at)
+      gain.gain.setValueAtTime(0.001, at)
+      gain.gain.linearRampToValueAtTime(appSettings.soundVolume * 0.085, at + 0.008)
+      gain.gain.setValueAtTime(appSettings.soundVolume * 0.085, at + length * 0.6)
+      gain.gain.exponentialRampToValueAtTime(0.001, at + length)
+      oscillator.connect(gain).connect(clickAudioContext.destination)
+      oscillator.start(at)
+      oscillator.stop(at + length)
+    })
+  } catch {}
+}
+
 function syncSoundControls() {
   const mute = document.getElementById('sound-toggle')
   const icon = document.getElementById('sound-toggle-icon')
@@ -274,7 +298,8 @@ async function boot() {
   const shared = {
     api: window.api,
     appInfo,
-    setStatus
+    setStatus,
+    onSuccess: playSuccessSound
   }
 
   downloadTab = new DownloadTab({

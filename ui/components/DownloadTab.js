@@ -1,8 +1,9 @@
 export class DownloadTab {
-  constructor({ root, api, setStatus, appInfo, settings }) {
+  constructor({ root, api, setStatus, appInfo, settings, onSuccess }) {
     this.root = root
     this.api = api
     this.setStatus = setStatus
+    this.onSuccess = onSuccess
     this.appInfo = appInfo
     this.currentFormat = 'video'
     this.lastFolder = ''
@@ -511,6 +512,7 @@ export class DownloadTab {
       this.root.querySelector('#download-progress-fill').style.width = '100%'
       this.showResult('success', 'Download concluido.', result.folder)
       this.setStatus('Download concluido com sucesso.')
+      this.onSuccess?.()
       return
     }
 
@@ -564,6 +566,7 @@ export class DownloadTab {
       this.root.querySelector('#download-progress-fill').style.width = '100%'
       this.showResult('success', `${clips.length} clipes baixados.`, result.folder)
       this.setStatus('Clipes baixados com sucesso.')
+      this.onSuccess?.()
     } else {
       this.showResult('error', result.error || 'Falha ao baixar clipes.', result.folder)
       this.setStatus('Erro ao baixar clipes.', 'error')

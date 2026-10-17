@@ -6,7 +6,7 @@ const fs = require('fs')
 const { randomUUID } = require('crypto')
 const { fileURLToPath } = require('url')
 const { probeMedia, getMediaThumbnail } = require('./services/FfprobeService')
-const { convert, detectCapabilities } = require('./services/ConversionService')
+const { convert, detectCapabilities, previewConversion } = require('./services/ConversionService')
 const { cookieArgs, describeYtDlpError, isYoutubeAuthError, normalizeCookieBrowser } = require('./services/YtDlpOptions')
 const { autoUpdater } = require('electron-updater')
 
@@ -996,8 +996,8 @@ registerTrustedHandle('select-cookies-file', async () => {
 
 registerTrustedHandle('select-media-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile'],
-    title: 'Selecionar arquivo de video ou audio',
+    properties: ['openFile', 'multiSelections'],
+    title: 'Selecionar vídeos ou áudios',
     filters: [
       {
         name: 'Midia',
@@ -1008,10 +1008,10 @@ registerTrustedHandle('select-media-file', async () => {
   })
 
   if (!result.canceled && result.filePaths.length > 0) {
-    return result.filePaths[0]
+    return result.filePaths
   }
 
-  return null
+  return []
 })
 
 registerTrustedOn('open-folder', (event, folderPath) => {
@@ -1332,6 +1332,16 @@ registerTrustedHandle('probe-media', async (event, filePath) => {
       error: error.message
     }
   }
+})
+
+registerTrustedHandle('preview-conversion', async (event, payload) => {
+  try {
+    if (activeConversion.state === 'converting') throw new Error('Aguarde a conversão terminar para atualizar a prévia.')
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.inputPath !== 'string' || !path.isAbsolute(payload.inputPath)) {
+      throw new Error('Selecione um vídeo válido.')
+    }
+    return { success: true, ...await previewConversion(payload, getRuntimeContext()) }
+  } catch (error) { return { error: error.message } }
 })
 
 registerTrustedHandle('convert-media', async (event, payload) => {

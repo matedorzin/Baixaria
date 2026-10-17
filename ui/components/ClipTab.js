@@ -8,8 +8,9 @@ const formatPrecise = (value) => {
 }
 
 export class ClipTab {
-  constructor({ root, api, setStatus, appInfo, settings }) {
+  constructor({ root, api, setStatus, appInfo, settings, onSuccess }) {
     this.root = root; this.api = api; this.setStatus = setStatus; this.appInfo = appInfo
+    this.onSuccess = onSuccess
     this.folder = settings?.downloadFolder || ''; this.info = null; this.url = ''; this.clips = []
     this.active = 0; this.cookiesPath = appInfo?.cookiesPath || ''; this.cookiesFromBrowser = ''; this.loading = false
     this.exportFormat = 'video'; this.dragging = ''; this.scrubTimer = null; this.lastScrubAt = 0
@@ -462,6 +463,7 @@ export class ClipTab {
     const box = this.root.querySelector('#clip-result'); box.className = `result-box ${result.success ? 'success' : 'error'} show`; box.replaceChildren(document.createTextNode(result.success ? 'Arquivos salvos. ' : result.error || 'Falha ao baixar. '))
     if (result.folder) { const open = document.createElement('button'); open.className = 'open-btn'; open.textContent = 'Abrir pasta'; open.addEventListener('click', () => this.api.openFolder(result.folder)); box.append(open) }
     this.setStatus(result.success ? 'Arquivos salvos. Você pode abrir a pasta e compartilhar pelo app que preferir.' : 'Erro ao baixar clipes.', result.success ? '' : 'error')
+    if (result.success) this.onSuccess?.()
   }
 
   escape(value) { return String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }

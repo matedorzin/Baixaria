@@ -1,6 +1,8 @@
 const fs = require('fs')
 const path = require('path')
+const os = require('os')
 const { getCapabilities, getFfmpegPath, runConversion } = require('./FfmpegService')
+const { getMediaThumbnail, probeMedia } = require('./FfprobeService')
 const { buildHdrToSdrFilter } = require('./ColorFilter')
 
 function fileExists(filePath) {
@@ -99,6 +101,13 @@ function getQualityCrf(qualityPreset, customCrf) {
   return mapping[qualityPreset] || '23'
 }
 
+function getOptimizedCrf(payload) {
+  const level = Math.max(0, Math.min(4, Number(payload.optimizationLevel) || 0))
+  const values = ['29', '27', '25', '22', '19']
+  const offset = payload.videoCodec === 'H.265' ? 2 : payload.videoCodec === 'VP9' || payload.videoCodec === 'AV1' ? 8 : 0
+  return String(Number(values[level]) + offset)
+}
+
 function buildVideoArgs(payload) {
   const filters = []
   const args = ['-map_metadata', '0']
@@ -123,7 +132,9 @@ function buildVideoArgs(payload) {
   }
 
   args.push('-c:v', mapVideoCodec(payload.videoCodec))
-  args.push('-crf', getQualityCrf(payload.videoQualityPreset, payload.videoCrf))
+  if (payload.optimizeEnabled && ['H.264', 'H.265'].includes(payload.videoCodec)) args.push('-preset', 'slow')
+  args.push('-crf', payload.optimizeEnabled ? getOptimizedCrf(payload) : getQualityCrf(payload.videoQualityPreset, payload.videoCrf))
+  if (payload.optimizeEnabled && ['VP9', 'AV1'].includes(payload.videoCodec)) args.push('-b:v', '0')
 
   if (payload.videoCodec === 'H.264') {
     args.push('-pix_fmt', 'yuv420p', '-profile:v', 'high')
@@ -223,7 +234,18 @@ function buildOutputPath(payload, defaultBaseName) {
         ? getContainerExtension(payload.audioFormat || 'MP3')
         : getContainerExtension(payload.outputFormat || 'MP4')
 
-  return path.join(outputFolder, `${desiredName}.${extension}`)
+  return availableOutputPath(path.join(outputFolder, `${desiredName}.${extension}`), payload.inputPath)
+}
+
+function availableOutputPath(candidate, inputPath) {
+  const parsed = path.parse(candidate)
+  let output = candidate
+  let suffix = 2
+  while (fs.existsSync(output) || path.resolve(output).toLowerCase() === path.resolve(inputPath).toLowerCase()) {
+    output = path.join(parsed.dir, `${parsed.name}-${suffix}${parsed.ext}`)
+    suffix += 1
+  }
+  return output
 }
 
 function buildCommand(payload) {
@@ -259,7 +281,37 @@ function buildSplitOutput(payload, index, total) {
   const baseName = sanitizeOutputName(payload.outputName, fallbackName)
   const extension = getContainerExtension(payload.outputFormat || 'MP4')
   const partNumber = String(index + 1).padStart(String(total).length, '0')
-  return path.join(outputFolder, `${baseName}-${partNumber}.${extension}`)
+  return availableOutputPath(path.join(outputFolder, `${baseName}-${partNumber}.${extension}`), payload.inputPath)
+}
+
+async function previewConversion(payload, context) {
+  if (!fileExists(payload.inputPath) || payload.mediaType !== 'video') throw new Error('Selecione um vídeo válido para gerar a prévia.')
+  const ffmpegPath = getFfmpegPath(context)
+  if (!ffmpegPath) throw new Error('FFmpeg não está disponível para gerar a prévia.')
+  const duration = Number(payload.duration) || 0
+  if (duration <= 0) throw new Error('A duração do vídeo não foi reconhecida.')
+  const sampleDuration = Math.min(5, duration)
+  const start = Math.max(0, Math.min(duration - sampleDuration, duration * .25))
+  const tempFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'baixaria-convert-preview-'))
+  const extension = getContainerExtension(payload.outputFormat || 'MP4')
+  const outputPath = path.join(tempFolder, `amostra.${extension}`)
+  try {
+    const args = ['-hide_banner', '-loglevel', 'error', '-ss', String(start), '-i', payload.inputPath,
+      '-t', String(sampleDuration), ...buildVideoArgs(payload), outputPath]
+    await runConversion({ ffmpegPath, args, durationSeconds: sampleDuration })
+    const outputSize = fs.statSync(outputPath).size
+    const sampledInfo = await probeMedia(outputPath, context)
+    const [before, after] = await Promise.all([
+      getMediaThumbnail(payload.inputPath, context, { colorTransfer: payload.sourceColorTransfer }, start),
+      getMediaThumbnail(outputPath, context, sampledInfo, 0)
+    ])
+    return {
+      before, after, sampleDuration,
+      estimatedSize: Math.round(outputSize / sampleDuration * duration)
+    }
+  } finally {
+    try { fs.rmSync(tempFolder, { recursive: true, force: true }) } catch {}
+  }
 }
 
 async function splitMedia(payload, context, onProgress, durationSeconds) {
@@ -353,5 +405,6 @@ async function convert(payload, context, onProgress) {
 
 module.exports = {
   convert,
-  detectCapabilities
+  detectCapabilities,
+  previewConversion
 }
